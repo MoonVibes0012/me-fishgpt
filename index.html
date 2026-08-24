@@ -47,7 +47,7 @@
       background: linear-gradient(90deg, transparent, #80deea, transparent); opacity: 0.6;
     }
     #chat {
-      width: 100%; height: 300px; min-height: 300px; max-height: 300px;
+      width: 100%; height: 320px; min-height: 320px; max-height: 320px;
       border: 1px solid rgba(128,222,234,0.2); border-radius: 18px;
       padding: 16px; overflow-y: auto; margin: 14px 0;
       box-shadow: 0 10px 36px rgba(0,0,0,0.4); position: relative;
@@ -79,10 +79,8 @@
       color: white; border: none; border-radius: 12px; font-size: 0.95rem;
       font-weight: 600; cursor: pointer;
     }
-
     .upload-area {
-      width: 100%; display: flex; gap: 8px; align-items: center;
-      margin-top: 4px;
+      width: 100%; display: flex; gap: 8px; align-items: center; margin-top: 4px;
     }
     .upload-area label {
       flex: 1; padding: 10px; text-align: center;
@@ -91,8 +89,7 @@
     }
     .upload-area input[type="file"] { display: none; }
     #status {
-      font-size: 0.8rem; color: rgba(128,222,234,0.5); margin-top: 8px;
-      text-align: center;
+      font-size: 0.8rem; color: rgba(128,222,234,0.5); margin-top: 8px; text-align: center;
     }
   </style>
 </head>
@@ -116,9 +113,9 @@
   </div>
 
   <script>
-    // ================== GANTI URL INI ==================
+    // ========== GANTI JIKA URL BERUBAH ==========
     const API = 'https://me-fishgpt-production.up.railway.app';
-    // ==================================================
+    // ===========================================
 
     const chat = document.getElementById('chat');
     const input = document.getElementById('input');
@@ -126,7 +123,7 @@
     const fileInput = document.getElementById('fileInput');
     const status = document.getElementById('status');
 
-    // Cek jumlah pengetahuan
+    // ===== Status pengetahuan =====
     async function updateStatus() {
       try {
         const res = await fetch(API + '/knowledge/count');
@@ -138,7 +135,7 @@
     }
     updateStatus();
 
-    // Upload file
+    // ===== Upload file =====
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files[0];
       if (!file) return;
@@ -148,10 +145,7 @@
       formData.append('file', file);
 
       try {
-        const res = await fetch(API + '/upload', {
-          method: 'POST',
-          body: formData
-        });
+        const res = await fetch(API + '/upload', { method: 'POST', body: formData });
         const data = await res.json();
         if (res.ok) {
           status.textContent = data.message;
@@ -165,7 +159,7 @@
       fileInput.value = '';
     });
 
-    // Ketik efek
+    // ===== Efek ketik =====
     function ketik(teks, elemen) {
       let i = 0;
       elemen.textContent = '';
@@ -174,23 +168,67 @@
           elemen.textContent += teks[i];
           i++;
           chat.scrollTop = chat.scrollHeight;
-          setTimeout(step, 55);
+          setTimeout(step, 48);
         }
       }
       step();
     }
 
-    // Pilih jawaban
-    async function pilihJawaban() {
+    // ===== Logika sederhana =====
+    function logikaSederhana(pesan) {
+      const p = pesan.toLowerCase().trim();
+
+      if (p.match(/^(halo|hai|hi|hey|hello)/)) {
+        return "halo, saya fishgpt";
+      }
+      if (p.includes('siapa kamu') || p.includes('kamu siapa')) {
+        return "saya fishgpt dari kedalaman";
+      }
+      if (p.includes('apa kabar') || p.includes('gimana kabar')) {
+        return "tenang di bawah laut";
+      }
+      if (p.includes('terima kasih') || p.includes('makasih')) {
+        return "sama-sama...";
+      }
+      if (p.includes('nama saya') || p.includes('namaku')) {
+        return "senang mengenalmu";
+      }
+      if (p.includes('malam')) {
+        return "malam di laut lebih dalam";
+      }
+      if (p.includes('pagi')) {
+        return "cahaya baru menyentuh permukaan";
+      }
+      if (p.includes('siang')) {
+        return "matahari sedang tinggi di atas";
+      }
+      if (p.includes('sore')) {
+        return "langit mulai berubah warna";
+      }
+      if (p === 'ok' || p === 'oke' || p === 'baik') {
+        return "baik";
+      }
+
+      return null; // tidak ketemu logika sederhana
+    }
+
+    // ===== Pilih jawaban =====
+    async function pilihJawaban(pesanUser) {
+      // 1. Cek logika sederhana dulu
+      const sederhana = logikaSederhana(pesanUser);
+      if (sederhana) {
+        return { text: sederhana, type: 'normal' };
+      }
+
       const rand = Math.random();
 
-      // 12% spesial
-      if (rand < 0.12) {
+      // 2. 10% spesial
+      if (rand < 0.10) {
         return { text: "i'm gpt by VelvetEcho ON MoonVibes", type: 'special' };
       }
 
-      // 35% coba ambil dari pengetahuan
-      if (rand < 0.47) {
+      // 3. 40% coba ambil dari pengetahuan
+      if (rand < 0.50) {
         try {
           const res = await fetch(API + '/knowledge/random');
           const data = await res.json();
@@ -200,14 +238,16 @@
         } catch {}
       }
 
-      // Sisanya
+      // 4. Default
       return { text: 'me fishgpt', type: 'normal' };
     }
 
+    // ===== Kirim pesan =====
     async function kirim() {
       const pesan = input.value.trim();
       if (!pesan) return;
 
+      // Tampilkan pesan user
       const userDiv = document.createElement('div');
       userDiv.className = 'msg user';
       userDiv.textContent = 'Kamu: ' + pesan;
@@ -215,11 +255,13 @@
       chat.scrollTop = chat.scrollHeight;
       input.value = '';
 
+      // Buat elemen bot
       const botDiv = document.createElement('div');
       botDiv.className = 'msg bot';
       chat.appendChild(botDiv);
 
-      const jawaban = await pilihJawaban();
+      const jawaban = await pilihJawaban(pesan);
+
       if (jawaban.type === 'special') botDiv.classList.add('special');
       if (jawaban.type === 'learned') botDiv.classList.add('learned');
 
@@ -232,4 +274,4 @@
     });
   </script>
 </body>
-  </html>
+</html>
