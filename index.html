@@ -12,47 +12,41 @@
       font-family: 'Quicksand', system-ui, sans-serif;
       background: linear-gradient(to bottom, #020b18 0%, #041428 45%, #0a2a4a 100%);
       color: #e0f7fa;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       position: relative;
     }
     body::before {
-      content: '';
-      position: absolute;
-      top: -20%; left: 50%;
+      content: ''; position: absolute; top: -20%; left: 50%;
       width: 110%; height: 45%;
-      background: radial-gradient(ellipse, rgba(100, 200, 255, 0.07) 0%, transparent 70%);
-      transform: translateX(-50%);
-      pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse, rgba(100,200,255,0.07) 0%, transparent 70%);
+      transform: translateX(-50%); pointer-events: none; z-index: 0;
     }
     body::after {
-      content: '';
-      position: absolute; inset: 0;
-      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.4) 100%);
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.45) 100%);
       pointer-events: none; z-index: 3;
     }
     .app {
-      width: 100%; max-width: 480px; height: 100%; max-height: 780px;
+      width: 100%; max-width: 480px; height: 100%; max-height: 820px;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 20px; position: relative; z-index: 10;
+      padding: 18px; position: relative; z-index: 10;
     }
     h1 {
-      font-size: 1.55rem; font-weight: 600; letter-spacing: 4px;
+      font-size: 1.5rem; font-weight: 600; letter-spacing: 4px;
       color: #80deea; text-shadow: 0 0 14px rgba(128,222,234,0.55);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
     h1::after {
-      content: ''; display: block; width: 60px; height: 2px; margin: 8px auto 0;
+      content: ''; display: block; width: 56px; height: 2px; margin: 7px auto 0;
       background: linear-gradient(90deg, transparent, #80deea, transparent); opacity: 0.6;
     }
     #chat {
-      width: 100%; height: 320px; min-height: 320px; max-height: 320px;
+      width: 100%; height: 340px;
       border: 1px solid rgba(128,222,234,0.2); border-radius: 18px;
-      padding: 16px; overflow-y: auto; margin: 14px 0;
+      padding: 16px; overflow-y: auto; margin: 12px 0;
       box-shadow: 0 10px 36px rgba(0,0,0,0.4); position: relative;
       background-image:
-        linear-gradient(rgba(8,28,48,0.78), rgba(8,28,48,0.78)),
+        linear-gradient(rgba(8,28,48,0.80), rgba(8,28,48,0.80)),
         url('Screenshot_20260821-130756_Brave.png');
       background-size: cover; background-position: center;
     }
@@ -61,13 +55,13 @@
       position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
       color: rgba(128,222,234,0.35); font-size: 0.95rem; white-space: nowrap;
     }
-    .msg { margin-bottom: 12px; line-height: 1.5; max-width: 88%; }
+    .msg { margin-bottom: 11px; line-height: 1.5; max-width: 88%; font-size: 0.97rem; }
     .user { color: #90caf9; margin-left: auto; text-align: right; }
     .bot { color: #80deea; text-shadow: 0 0 8px rgba(128,222,234,0.4); }
     .bot.special { color: #f0abfc; text-shadow: 0 0 10px rgba(240,171,252,0.5); }
     .bot.learned { color: #a5f3fc; }
 
-    .input-area { width: 100%; display: flex; gap: 8px; margin-bottom: 10px; }
+    .input-area { width: 100%; display: flex; gap: 8px; margin-bottom: 8px; }
     input[type="text"] {
       flex: 1; padding: 13px 15px;
       border: 1px solid rgba(128,222,234,0.25); border-radius: 12px;
@@ -79,17 +73,15 @@
       color: white; border: none; border-radius: 12px; font-size: 0.95rem;
       font-weight: 600; cursor: pointer;
     }
-    .upload-area {
-      width: 100%; display: flex; gap: 8px; align-items: center; margin-top: 4px;
-    }
+    .upload-area { width: 100%; margin-top: 2px; }
     .upload-area label {
-      flex: 1; padding: 10px; text-align: center;
+      display: block; padding: 10px; text-align: center;
       border: 1px dashed rgba(128,222,234,0.35); border-radius: 10px;
       color: rgba(128,222,234,0.7); font-size: 0.9rem; cursor: pointer;
     }
     .upload-area input[type="file"] { display: none; }
     #status {
-      font-size: 0.8rem; color: rgba(128,222,234,0.5); margin-top: 8px; text-align: center;
+      font-size: 0.78rem; color: rgba(128,222,234,0.5); margin-top: 8px; text-align: center;
     }
   </style>
 </head>
@@ -113,9 +105,7 @@
   </div>
 
   <script>
-    // ========== GANTI JIKA URL BERUBAH ==========
     const API = 'https://me-fishgpt-production.up.railway.app';
-    // ===========================================
 
     const chat = document.getElementById('chat');
     const input = document.getElementById('input');
@@ -123,112 +113,157 @@
     const fileInput = document.getElementById('fileInput');
     const status = document.getElementById('status');
 
-    // ===== Status pengetahuan =====
+    // ========== AUDIO ==========
+    let audioCtx;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    // Suara ketik bot
+    function playTypeSound() {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.frequency.value = 620 + Math.random() * 180;
+      osc.type = 'triangle';
+      gain.gain.value = 0.035;
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.06);
+    }
+
+    // Suara saat user mengetik
+    function playKeySound() {
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.frequency.value = 800 + Math.random() * 400;
+      osc.type = 'square';
+      gain.gain.value = 0.018;
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.04);
+    }
+
+    input.addEventListener('keydown', () => {
+      initAudio();
+      playKeySound();
+    });
+
+    // ========== STATUS ==========
     async function updateStatus() {
       try {
         const res = await fetch(API + '/knowledge/count');
         const data = await res.json();
         status.textContent = `Pengetahuan bersama: ${data.count} potongan`;
       } catch {
-        status.textContent = 'Backend offline / belum terhubung';
+        status.textContent = 'Backend offline';
       }
     }
     updateStatus();
 
-    // ===== Upload file =====
+    // ========== UPLOAD ==========
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files[0];
       if (!file) return;
-
-      status.textContent = 'Mengunggah pengetahuan...';
+      status.textContent = 'Mengunggah...';
       const formData = new FormData();
       formData.append('file', file);
-
       try {
         const res = await fetch(API + '/upload', { method: 'POST', body: formData });
         const data = await res.json();
-        if (res.ok) {
-          status.textContent = data.message;
-          updateStatus();
-        } else {
-          status.textContent = data.error || 'Gagal upload';
-        }
+        status.textContent = res.ok ? data.message : (data.error || 'Gagal');
+        if (res.ok) updateStatus();
       } catch {
-        status.textContent = 'Gagal terhubung ke server';
+        status.textContent = 'Gagal terhubung';
       }
       fileInput.value = '';
     });
 
-    // ===== Efek ketik =====
+    // ========== KETIK EFEK ==========
     function ketik(teks, elemen) {
       let i = 0;
       elemen.textContent = '';
       function step() {
         if (i < teks.length) {
           elemen.textContent += teks[i];
+          playTypeSound();
           i++;
           chat.scrollTop = chat.scrollHeight;
-          setTimeout(step, 48);
+          setTimeout(step, 45);
         }
       }
       step();
     }
 
-    // ===== Logika sederhana =====
+    // ========== LOGIKA LEBIH KOMPLEKS ==========
     function logikaSederhana(pesan) {
       const p = pesan.toLowerCase().trim();
 
-      if (p.match(/^(halo|hai|hi|hey|hello)/)) {
-        return "halo, saya fishgpt";
+      if (/^(halo|hai|hi|hey|hello|pagi|siang|sore|malam)\b/.test(p)) {
+        const jam = new Date().getHours();
+        if (jam >= 5 && jam < 11) return "pagi... saya fishgpt";
+        if (jam >= 11 && jam < 15) return "siang. saya fishgpt";
+        if (jam >= 15 && jam < 19) return "sore. kedalaman mulai gelap";
+        return "malam. saya fishgpt dari bawah laut";
       }
-      if (p.includes('siapa kamu') || p.includes('kamu siapa')) {
-        return "saya fishgpt dari kedalaman";
+
+      if (p.includes('siapa kamu') || p.includes('kamu siapa') || p.includes('nama kamu')) {
+        return "saya fishgpt. makhluk dari kedalaman";
       }
-      if (p.includes('apa kabar') || p.includes('gimana kabar')) {
-        return "tenang di bawah laut";
+      if (p.includes('apa kabar') || p.includes('gimana kabar') || p.includes('kabarmu')) {
+        return "tenang. arus sedang pelan hari ini";
       }
-      if (p.includes('terima kasih') || p.includes('makasih')) {
+      if (p.includes('terima kasih') || p.includes('makasih') || p.includes('thanks')) {
         return "sama-sama...";
       }
-      if (p.includes('nama saya') || p.includes('namaku')) {
-        return "senang mengenalmu";
+      if (p.includes('love') || p.includes('cinta') || p.includes('sayang')) {
+        return "di laut, perasaan ikut arus";
       }
-      if (p.includes('malam')) {
-        return "malam di laut lebih dalam";
+      if (p.includes('sedih') || p.includes('capek') || p.includes('lelah')) {
+        return "tenggelam sejenak boleh. laut menerimamu";
       }
-      if (p.includes('pagi')) {
-        return "cahaya baru menyentuh permukaan";
+      if (p.includes('senang') || p.includes('bahagia') || p.includes('happy')) {
+        return "bagus. biarkan itu mengapung";
       }
-      if (p.includes('siang')) {
-        return "matahari sedang tinggi di atas";
+      if (p.includes('nama saya') || p.includes('namaku') || p.includes('saya')) {
+        return "aku dengarkan";
       }
-      if (p.includes('sore')) {
-        return "langit mulai berubah warna";
+      if (p.includes('apa yang kamu tahu') || p.includes('pengetahuan')) {
+        return "aku menyimpan apa yang diberikan padaku";
       }
-      if (p === 'ok' || p === 'oke' || p === 'baik') {
+      if (p.includes('belajar') || p.includes('ajari')) {
+        return "kirimkan file. aku akan mengingatnya";
+      }
+      if (p === 'ok' || p === 'oke' || p === 'baik' || p === 'sip') {
         return "baik";
       }
+      if (p.includes('bye') || p.includes('dadah') || p.includes('selamat tinggal')) {
+        return "sampai bertemu di arus berikutnya";
+      }
 
-      return null; // tidak ketemu logika sederhana
+      return null;
     }
 
-    // ===== Pilih jawaban =====
+    // ========== PILIH JAWABAN ==========
     async function pilihJawaban(pesanUser) {
-      // 1. Cek logika sederhana dulu
+      // Prioritas 1: logika sederhana
       const sederhana = logikaSederhana(pesanUser);
-      if (sederhana) {
-        return { text: sederhana, type: 'normal' };
-      }
+      if (sederhana) return { text: sederhana, type: 'normal' };
 
       const rand = Math.random();
 
-      // 2. 10% spesial
-      if (rand < 0.10) {
+      // Prioritas 2: spesial (8%)
+      if (rand < 0.08) {
         return { text: "i'm gpt by VelvetEcho ON MoonVibes", type: 'special' };
       }
 
-      // 3. 40% coba ambil dari pengetahuan
-      if (rand < 0.50) {
+      // Prioritas 3: pengetahuan (45%)
+      if (rand < 0.53) {
         try {
           const res = await fetch(API + '/knowledge/random');
           const data = await res.json();
@@ -238,16 +273,17 @@
         } catch {}
       }
 
-      // 4. Default
+      // Default
       return { text: 'me fishgpt', type: 'normal' };
     }
 
-    // ===== Kirim pesan =====
+    // ========== KIRIM ==========
     async function kirim() {
       const pesan = input.value.trim();
       if (!pesan) return;
 
-      // Tampilkan pesan user
+      initAudio();
+
       const userDiv = document.createElement('div');
       userDiv.className = 'msg user';
       userDiv.textContent = 'Kamu: ' + pesan;
@@ -255,13 +291,11 @@
       chat.scrollTop = chat.scrollHeight;
       input.value = '';
 
-      // Buat elemen bot
       const botDiv = document.createElement('div');
       botDiv.className = 'msg bot';
       chat.appendChild(botDiv);
 
       const jawaban = await pilihJawaban(pesan);
-
       if (jawaban.type === 'special') botDiv.classList.add('special');
       if (jawaban.type === 'learned') botDiv.classList.add('learned');
 
