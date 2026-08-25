@@ -55,8 +55,6 @@
       word-wrap: break-word;
       white-space: pre-wrap;
       overflow-wrap: break-word;
-
-      /* 🔥 BACKGROUND GAMBAR KEMBALI 🔥 */
       background-image:
         linear-gradient(rgba(8,28,48,0.78), rgba(8,28,48,0.78)),
         url('Screenshot_20260821-130756_Brave.png');
@@ -148,11 +146,34 @@
       cursor: pointer;
     }
     .upload-area input[type="file"] { display: none; }
+
+    .bottom-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 8px;
+    }
     #status {
       font-size: 0.78rem;
       color: rgba(128,222,234,0.5);
-      margin-top: 8px;
-      text-align: center;
+      flex: 1;
+    }
+    #btnReset {
+      padding: 6px 14px;
+      background: rgba(255,80,80,0.2);
+      color: #ff8a80;
+      border: 1px solid rgba(255,80,80,0.3);
+      border-radius: 8px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: 0.2s;
+      white-space: nowrap;
+    }
+    #btnReset:hover {
+      background: rgba(255,80,80,0.35);
+      border-color: #ff5252;
     }
   </style>
 </head>
@@ -172,7 +193,11 @@
         <input type="file" id="fileInput" accept=".txt" />
       </label>
     </div>
-    <div id="status">Menunggu koneksi...</div>
+
+    <div class="bottom-row">
+      <div id="status">Menunggu koneksi...</div>
+      <button id="btnReset">🗑️ Reset Pengetahuan</button>
+    </div>
   </div>
 
   <script>
@@ -183,6 +208,7 @@
     const btn = document.getElementById('btnKirim');
     const fileInput = document.getElementById('fileInput');
     const status = document.getElementById('status');
+    const btnReset = document.getElementById('btnReset');
 
     // ========== AUDIO ==========
     let audioCtx;
@@ -208,7 +234,6 @@
       input.style.height = 'auto';
       input.style.height = Math.min(input.scrollHeight, 120) + 'px';
     }
-
     input.addEventListener('input', autoResize);
 
     // ========== STATUS ==========
@@ -239,6 +264,20 @@
         status.textContent = 'Gagal terhubung';
       }
       fileInput.value = '';
+    });
+
+    // ========== RESET PENGETAHUAN ==========
+    btnReset.addEventListener('click', async () => {
+      if (!confirm('Yakin mau hapus semua pengetahuan? Ini ga bisa dibalikin.')) return;
+      status.textContent = 'Menghapus semua pengetahuan...';
+      try {
+        const res = await fetch(API + '/knowledge/reset', { method: 'DELETE' });
+        const data = await res.json();
+        status.textContent = res.ok ? '✅ Semua pengetahuan direset' : (data.error || 'Gagal reset');
+        if (res.ok) updateStatus();
+      } catch {
+        status.textContent = 'Gagal terhubung ke backend';
+      }
     });
 
     // ========== KETIK EFEK ==========
