@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>me fishgpt</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600&display=swap');
@@ -28,60 +28,119 @@
     }
     .app {
       width: 100%; max-width: 480px; height: 100%; max-height: 820px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      display: flex; flex-direction: column;
       padding: 18px; position: relative; z-index: 10;
     }
     h1 {
       font-size: 1.5rem; font-weight: 600; letter-spacing: 4px;
       color: #80deea; text-shadow: 0 0 14px rgba(128,222,234,0.55);
-      margin-bottom: 4px;
+      margin-bottom: 4px; text-align: center;
     }
     h1::after {
       content: ''; display: block; width: 56px; height: 2px; margin: 7px auto 0;
       background: linear-gradient(90deg, transparent, #80deea, transparent); opacity: 0.6;
     }
     #chat {
-      width: 100%; height: 340px;
-      border: 1px solid rgba(128,222,234,0.2); border-radius: 18px;
-      padding: 16px; overflow-y: auto; margin: 12px 0;
-      box-shadow: 0 10px 36px rgba(0,0,0,0.4); position: relative;
-      background-image:
-        linear-gradient(rgba(8,28,48,0.80), rgba(8,28,48,0.80)),
-        url('Screenshot_20260821-130756_Brave.png');
-      background-size: cover; background-position: center;
+      width: 100%;
+      flex: 1;
+      min-height: 200px;
+      max-height: 500px;
+      border: 1px solid rgba(128,222,234,0.2);
+      border-radius: 18px;
+      padding: 16px;
+      overflow-y: auto;
+      margin: 12px 0;
+      box-shadow: 0 10px 36px rgba(0,0,0,0.4);
+      background: rgba(8,28,48,0.85);
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
     }
     #chat:empty::before {
       content: 'Kedalaman menunggu bisikanmu...';
       position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
       color: rgba(128,222,234,0.35); font-size: 0.95rem; white-space: nowrap;
     }
-    .msg { margin-bottom: 11px; line-height: 1.5; max-width: 88%; font-size: 0.97rem; }
-    .user { color: #90caf9; margin-left: auto; text-align: right; }
-    .bot { color: #80deea; text-shadow: 0 0 8px rgba(128,222,234,0.4); }
+    .msg {
+      margin-bottom: 11px;
+      line-height: 1.5;
+      max-width: 88%;
+      font-size: 0.97rem;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+    }
+    .user {
+      color: #90caf9;
+      margin-left: auto;
+      text-align: right;
+    }
+    .bot {
+      color: #80deea;
+      text-shadow: 0 0 8px rgba(128,222,234,0.4);
+    }
     .bot.special { color: #f0abfc; text-shadow: 0 0 10px rgba(240,171,252,0.5); }
     .bot.learned { color: #a5f3fc; }
 
-    .input-area { width: 100%; display: flex; gap: 8px; margin-bottom: 8px; }
-    input[type="text"] {
-      flex: 1; padding: 13px 15px;
-      border: 1px solid rgba(128,222,234,0.25); border-radius: 12px;
-      background: rgba(10,35,55,0.7); color: #e0f7fa; font-size: 1rem;
-      font-family: inherit; outline: none;
+    .input-area {
+      width: 100%;
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: flex-end;
+    }
+    .input-area textarea {
+      flex: 1;
+      padding: 13px 15px;
+      border: 1px solid rgba(128,222,234,0.25);
+      border-radius: 12px;
+      background: rgba(10,35,55,0.7);
+      color: #e0f7fa;
+      font-size: 1rem;
+      font-family: inherit;
+      outline: none;
+      resize: none;
+      overflow-y: auto;
+      min-height: 48px;
+      max-height: 120px;
+      line-height: 1.4;
+      transition: height 0.1s ease;
+    }
+    .input-area textarea::placeholder {
+      color: rgba(128,222,234,0.4);
     }
     button {
-      padding: 13px 18px; background: linear-gradient(135deg, #006064, #00acc1);
-      color: white; border: none; border-radius: 12px; font-size: 0.95rem;
-      font-weight: 600; cursor: pointer;
+      padding: 13px 18px;
+      background: linear-gradient(135deg, #006064, #00acc1);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      height: 48px;
+      flex-shrink: 0;
     }
-    .upload-area { width: 100%; margin-top: 2px; }
+    .upload-area {
+      width: 100%;
+      margin-top: 2px;
+    }
     .upload-area label {
-      display: block; padding: 10px; text-align: center;
-      border: 1px dashed rgba(128,222,234,0.35); border-radius: 10px;
-      color: rgba(128,222,234,0.7); font-size: 0.9rem; cursor: pointer;
+      display: block;
+      padding: 10px;
+      text-align: center;
+      border: 1px dashed rgba(128,222,234,0.35);
+      border-radius: 10px;
+      color: rgba(128,222,234,0.7);
+      font-size: 0.9rem;
+      cursor: pointer;
     }
     .upload-area input[type="file"] { display: none; }
     #status {
-      font-size: 0.78rem; color: rgba(128,222,234,0.5); margin-top: 8px; text-align: center;
+      font-size: 0.78rem;
+      color: rgba(128,222,234,0.5);
+      margin-top: 8px;
+      text-align: center;
     }
   </style>
 </head>
@@ -91,14 +150,14 @@
     <div id="chat"></div>
 
     <div class="input-area">
-      <input type="text" id="input" placeholder="Bisikkan sesuatu..." autocomplete="off">
+      <textarea id="input" placeholder="Bisikkan sesuatu..." autocomplete="off" rows="1"></textarea>
       <button id="btnKirim">Kirim</button>
     </div>
 
     <div class="upload-area">
       <label>
         + Beri Pengetahuan (.txt)
-        <input type="file" id="fileInput" accept=".txt">
+        <input type="file" id="fileInput" accept=".txt" />
       </label>
     </div>
     <div id="status">Menunggu koneksi...</div>
@@ -118,8 +177,6 @@
     function initAudio() {
       if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
-
-    // Suara ketik bot
     function playTypeSound() {
       if (!audioCtx) return;
       const osc = audioCtx.createOscillator();
@@ -134,25 +191,13 @@
       osc.stop(audioCtx.currentTime + 0.06);
     }
 
-    // Suara saat user mengetik
-    function playKeySound() {
-      if (!audioCtx) return;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.frequency.value = 800 + Math.random() * 400;
-      osc.type = 'square';
-      gain.gain.value = 0.018;
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.04);
+    // ========== AUTO-RESIZE TEXTAREA ==========
+    function autoResize() {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
     }
 
-    input.addEventListener('keydown', () => {
-      initAudio();
-      playKeySound();
-    });
+    input.addEventListener('input', autoResize);
 
     // ========== STATUS ==========
     async function updateStatus() {
@@ -200,69 +245,61 @@
       step();
     }
 
-    // ========== LOGIKA LEBIH KOMPLEKS ==========
+    // ========== LOGIKA SEDERHANA ==========
     function logikaSederhana(pesan) {
       const p = pesan.toLowerCase().trim();
-
       if (/^(halo|hai|hi|hey|hello|pagi|siang|sore|malam)\b/.test(p)) {
         const jam = new Date().getHours();
-        if (jam >= 5 && jam < 11) return "pagi... saya fishgpt";
-        if (jam >= 11 && jam < 15) return "siang. saya fishgpt";
-        if (jam >= 15 && jam < 19) return "sore. kedalaman mulai gelap";
-        return "malam. saya fishgpt dari bawah laut";
+        if (jam >= 5 && jam < 11) return 'pagi... saya fishgpt';
+        if (jam >= 11 && jam < 15) return 'siang. saya fishgpt';
+        if (jam >= 15 && jam < 19) return 'sore. kedalaman mulai gelap';
+        return 'malam. saya fishgpt dari bawah laut';
       }
-
       if (p.includes('siapa kamu') || p.includes('kamu siapa') || p.includes('nama kamu')) {
-        return "saya fishgpt. makhluk dari kedalaman";
+        return 'saya fishgpt. makhluk dari kedalaman';
       }
       if (p.includes('apa kabar') || p.includes('gimana kabar') || p.includes('kabarmu')) {
-        return "tenang. arus sedang pelan hari ini";
+        return 'tenang. arus sedang pelan hari ini';
       }
       if (p.includes('terima kasih') || p.includes('makasih') || p.includes('thanks')) {
-        return "sama-sama...";
+        return 'sama-sama...';
       }
       if (p.includes('love') || p.includes('cinta') || p.includes('sayang')) {
-        return "di laut, perasaan ikut arus";
+        return 'di laut, perasaan ikut arus';
       }
       if (p.includes('sedih') || p.includes('capek') || p.includes('lelah')) {
-        return "tenggelam sejenak boleh. laut menerimamu";
+        return 'tenggelam sejenak boleh. laut menerimamu';
       }
       if (p.includes('senang') || p.includes('bahagia') || p.includes('happy')) {
-        return "bagus. biarkan itu mengapung";
+        return 'bagus. biarkan itu mengapung';
       }
       if (p.includes('nama saya') || p.includes('namaku') || p.includes('saya')) {
-        return "aku dengarkan";
+        return 'aku dengarkan';
       }
       if (p.includes('apa yang kamu tahu') || p.includes('pengetahuan')) {
-        return "aku menyimpan apa yang diberikan padaku";
+        return 'aku menyimpan apa yang diberikan padaku';
       }
       if (p.includes('belajar') || p.includes('ajari')) {
-        return "kirimkan file. aku akan mengingatnya";
+        return 'kirimkan file. aku akan mengingatnya';
       }
       if (p === 'ok' || p === 'oke' || p === 'baik' || p === 'sip') {
-        return "baik";
+        return 'baik';
       }
       if (p.includes('bye') || p.includes('dadah') || p.includes('selamat tinggal')) {
-        return "sampai bertemu di arus berikutnya";
+        return 'sampai bertemu di arus berikutnya';
       }
-
       return null;
     }
 
     // ========== PILIH JAWABAN ==========
     async function pilihJawaban(pesanUser) {
-      // Prioritas 1: logika sederhana
       const sederhana = logikaSederhana(pesanUser);
       if (sederhana) return { text: sederhana, type: 'normal' };
 
       const rand = Math.random();
-
-      // Prioritas 2: spesial (8%)
       if (rand < 0.08) {
         return { text: "i'm gpt by VelvetEcho ON MoonVibes", type: 'special' };
       }
-
-      // Prioritas 3: pengetahuan (45%)
       if (rand < 0.53) {
         try {
           const res = await fetch(API + '/knowledge/random');
@@ -272,8 +309,6 @@
           }
         } catch {}
       }
-
-      // Default
       return { text: 'me fishgpt', type: 'normal' };
     }
 
@@ -289,7 +324,9 @@
       userDiv.textContent = 'Kamu: ' + pesan;
       chat.appendChild(userDiv);
       chat.scrollTop = chat.scrollHeight;
+
       input.value = '';
+      input.style.height = '48px';
 
       const botDiv = document.createElement('div');
       botDiv.className = 'msg bot';
@@ -303,9 +340,15 @@
     }
 
     btn.addEventListener('click', kirim);
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') kirim();
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        kirim();
+      }
     });
+
+    // biar ga error pas pertama kali
+    setTimeout(autoResize, 100);
   </script>
 </body>
 </html>
