@@ -51,15 +51,25 @@
       overflow-y: auto;
       margin: 12px 0;
       box-shadow: 0 10px 36px rgba(0,0,0,0.4);
-      background: rgba(8,28,48,0.85);
+      position: relative;
       word-wrap: break-word;
       white-space: pre-wrap;
       overflow-wrap: break-word;
+
+      /* 🔥 BACKGROUND GAMBAR KEMBALI 🔥 */
+      background-image:
+        linear-gradient(rgba(8,28,48,0.78), rgba(8,28,48,0.78)),
+        url('Screenshot_20260821-130756_Brave.png');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
     }
     #chat:empty::before {
       content: 'Kedalaman menunggu bisikanmu...';
       position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
       color: rgba(128,222,234,0.35); font-size: 0.95rem; white-space: nowrap;
+      pointer-events: none;
+      z-index: 5;
     }
     .msg {
       margin-bottom: 11px;
@@ -69,6 +79,8 @@
       word-wrap: break-word;
       white-space: pre-wrap;
       overflow-wrap: break-word;
+      position: relative;
+      z-index: 6;
     }
     .user {
       color: #90caf9;
@@ -347,7 +359,6 @@
       }
     });
 
-    // biar ga error pas pertama kali
     setTimeout(autoResize, 100);
   </script>
 </body>
