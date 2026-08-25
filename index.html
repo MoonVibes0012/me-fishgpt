@@ -153,6 +153,7 @@
       justify-content: space-between;
       gap: 12px;
       margin-top: 8px;
+      flex-wrap: wrap;
     }
     #status {
       font-size: 0.78rem;
@@ -160,20 +161,26 @@
       flex: 1;
     }
     #btnReset {
-      padding: 6px 14px;
-      background: rgba(255,80,80,0.2);
+      padding: 6px 16px;
+      background: rgba(255,60,60,0.2);
       color: #ff8a80;
-      border: 1px solid rgba(255,80,80,0.3);
+      border: 1px solid rgba(255,60,60,0.35);
       border-radius: 8px;
-      font-size: 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
       cursor: pointer;
       font-family: inherit;
       transition: 0.2s;
       white-space: nowrap;
+      backdrop-filter: blur(4px);
     }
     #btnReset:hover {
-      background: rgba(255,80,80,0.35);
+      background: rgba(255,60,60,0.4);
       border-color: #ff5252;
+      color: #ffab91;
+    }
+    #btnReset:active {
+      transform: scale(0.96);
     }
   </style>
 </head>
