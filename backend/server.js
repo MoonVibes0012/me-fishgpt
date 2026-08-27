@@ -17,7 +17,7 @@ const pool = new Pool({
 app.use(cors());
 app.use(express.json());
 
-// Multer (hanya terima .txt, max 1MB)
+// Multer - hanya terima .txt, maksimal 1MB
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 1 * 1024 * 1024 },
@@ -32,18 +32,22 @@ const upload = multer({
 
 // Buat tabel jika belum ada
 async function initDB() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS knowledge (
-      id SERIAL PRIMARY KEY,
-      content TEXT NOT NULL,
-      source VARCHAR(255),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  console.log('Database siap');
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS knowledge (
+        id SERIAL PRIMARY KEY,
+        content TEXT NOT NULL,
+        source VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('Database siap');
+  } catch (err) {
+    console.error('Gagal init database:', err);
+  }
 }
 
-// ========== ROUTES ==========
+// ================== ROUTES ==================
 
 // Health check
 app.get('/', (req, res) => {
@@ -62,11 +66,15 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'File kosong' });
     }
 
-    // Pecah menjadi potongan (per baris atau per paragraf)
+    // Pecah menjadi potongan (per baris)
     const chunks = text
       .split(/\n+/)
       .map(line => line.trim())
-      .filter(line => line.length > 10); // buang baris terlalu pendek
+      .filter(line => line.length > 5);
+
+    if (chunks.length === 0) {
+      return res.status(400).json({ error: 'Tidak ada konten yang valid' });
+    }
 
     for (const chunk of chunks) {
       await pool.query(
@@ -85,7 +93,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-// Ambil 1 potongan acak dari pengetahuan
+// Ambil 1 potongan acak
 app.get('/knowledge/random', async (req, res) => {
   try {
     const result = await pool.query(
@@ -107,13 +115,25 @@ app.get('/knowledge/random', async (req, res) => {
 app.get('/knowledge/count', async (req, res) => {
   try {
     const result = await pool.query('SELECT COUNT(*) FROM knowledge');
-    res.json({ count: parseInt(result.rows[0].count) });
+    res.json({ count: parseInt(result.rows[0].count, 10) });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Gagal menghitung' });
   }
 });
 
-// Jalankan
+// ===== RESET SEMUA PENGETAHUAN =====
+app.delete('/knowledge/reset', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM knowledge');
+    res.json({ message: 'Semua pengetahuan berhasil dihapus' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mereset pengetahuan' });
+  }
+});
+
+// Jalankan server
 initDB().then(() => {
   app.listen(port, () => {
     console.log(`Server berjalan di port ${port}`);
