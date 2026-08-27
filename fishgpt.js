@@ -1,131 +1,286 @@
-// fishgpt.js
+/**
+ * fishgpt.js
+ * Core Engine - Version 3.2
+ */
+
 const API = 'https://me-fishgpt-production.up.railway.app';
 
 let COMMANDS = null;
+let chatHistory = [];
+let sortedCache = null; // cache perintah yang sudah diurutkan
 
-// ===== LOAD COMMANDS =====
+// =====================================================
+// LOAD & SAVE
+// =====================================================
 async function loadCommands() {
-  // Coba dari localStorage dulu
   const saved = localStorage.getItem('fishgpt_commands');
   if (saved) {
     try {
       COMMANDS = JSON.parse(saved);
-      return;
-    } catch {}
+      if (COMMANDS && Array.isArray(COMMANDS.commands)) {
+        sortedCache = null;
+        console.log(`[FishGPT] ${COMMANDS.commands.length} perintah dimuat dari localStorage`);
+        return;
+      }
+    } catch (e) {
+      console.warn('[FishGPT] localStorage rusak');
+    }
   }
 
-  // Kalau tidak ada, ambil dari commands.json
   try {
-    const res = await fetch('commands.json');
+    const res = await fetch('commands.json?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     COMMANDS = await res.json();
-    localStorage.setItem('fishgpt_commands', JSON.stringify(COMMANDS));
-  } catch {
-    // Fallback minimal
-    COMMANDS = {
-      fallback: "me fishgpt",
-      special_chance: 0.03,
-      special_responses: ["dari kedalaman yang sama"],
-      commands: []
-    };
+    saveCommands();
+    sortedCache = null;
+    console.log('[FishGPT] Perintah dimuat dari commands.json');
+  } catch (err) {
+    console.error('[FishGPT] Gagal memuat commands.json:', err.message);
+    COMMANDS = getFallbackCommands();
   }
+}
+
+function getFallbackCommands() {
+  return {
+    version: 'fallback',
+    fallback: 'me fishgpt',
+    special_chance: 0.03,
+    special_responses: ['dari kedalaman yang sama'],
+    commands: []
+  };
 }
 
 function saveCommands() {
-  localStorage.setItem('fishgpt_commands', JSON.stringify(COMMANDS));
+  try {
+    localStorage.setItem('fishgpt_commands', JSON.stringify(COMMANDS));
+    sortedCache = null; // invalidate cache
+  } catch (e) {
+    console.warn('[FishGPT] Gagal menyimpan ke localStorage');
+  }
 }
 
-// ===== AUDIO =====
-let audioCtx;
+async function resetCommandsToDefault() {
+  try {
+    const res = await fetch('commands.json?t=' + Date.now());
+    if (!res.ok) throw new Error('Gagal memuat file');
+    COMMANDS = await res.json();
+    saveCommands();
+    return true;
+  } catch (err) {
+    console.error(err);
+    return false;
+  }
+}
+
+// =====================================================
+// AUDIO
+// =====================================================
+let audioCtx = null;
+
 function initAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
 }
 
 function playTypeSound() {
   if (!audioCtx) return;
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.connect(g);
-  g.connect(audioCtx.destination);
-  o.frequency.value = 600 + Math.random() * 140;
-  o.type = 'triangle';
-  g.gain.value = 0.025;
-  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-  o.start();
-  o.stop(audioCtx.currentTime + 0.05);
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'triangle';
+    osc.frequency.value = 580 + Math.random() * 160;
+    gain.gain.value = 0.028;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.05);
+  } catch {}
 }
 
 function playKeySound() {
   if (!audioCtx) return;
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.connect(g);
-  g.connect(audioCtx.destination);
-  o.frequency.value = 750 + Math.random() * 300;
-  o.type = 'square';
-  g.gain.value = 0.012;
-  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
-  o.start();
-  o.stop(audioCtx.currentTime + 0.03);
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type = 'square';
+    osc.frequency.value = 720 + Math.random() * 300;
+    gain.gain.value = 0.011;
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.028);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.028);
+  } catch {}
 }
 
-// ===== COMMAND ENGINE =====
-function runCommand(pesan) {
+// =====================================================
+// MATCHING ENGINE (dengan skor)
+// =====================================================
+function getSortedCommands() {
+  if (sortedCache) return sortedCache;
+  sortedCache = [...(COMMANDS?.commands || [])].sort((a, b) => {
+    return (b.priority || 0) - (a.priority || 0);
+  });
+  return sortedCache;
+}
+
+function calculateScore(pesan, trigger, exact = false) {
   const p = pesan.toLowerCase().trim();
-  const jam = new Date().getHours();
+  const t = trigger.toLowerCase().trim();
 
-  for (const cmd of COMMANDS.commands) {
-    if (!cmd.triggers.some(t => p.includes(t.toLowerCase()))) continue;
+  if (!t) return 0;
 
-    if (cmd.responses) {
-      if (p.includes('pagi') || (cmd.category === 'sapaan' && jam >= 5 && jam < 11))
-        return cmd.responses.pagi || cmd.responses.default;
-      if (p.includes('siang') || (cmd.category === 'sapaan' && jam >= 11 && jam < 15))
-        return cmd.responses.siang || cmd.responses.default;
-      if (p.includes('sore') || (cmd.category === 'sapaan' && jam >= 15 && jam < 18))
-        return cmd.responses.sore || cmd.responses.default;
-      if (p.includes('malam') || (cmd.category === 'sapaan' && (jam >= 18 || jam < 5)))
-        return cmd.responses.malam || cmd.responses.default;
-      return cmd.responses.default || Object.values(cmd.responses)[0];
-    }
+  // Exact match
+  if (p === t) return 100;
 
-    if (cmd.response) return cmd.response;
-  }
-  return null;
+  if (exact) return 0; // jika wajib exact dan tidak sama, skor 0
+
+  // Kata penuh
+  const regex = new RegExp(`\\b${escapeRegex(t)}\\b`, 'i');
+  if (regex.test(p)) return 80;
+
+  // Partial
+  if (p.includes(t)) return 50;
+
+  return 0;
 }
 
-// ===== PILIH JAWABAN =====
-async function chooseAnswer(pesan) {
-  // 1. Perintah
-  const cmd = runCommand(pesan);
-  if (cmd) return { text: cmd, type: 'command' };
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-  // 2. Special
-  const chance = COMMANDS.special_chance || 0.03;
-  if (Math.random() < chance && COMMANDS.special_responses?.length) {
-    const list = COMMANDS.special_responses;
-    const text = list[Math.floor(Math.random() * list.length)];
+function runCommand(pesan) {
+  if (!COMMANDS?.commands?.length) return null;
+
+  const p = pesan.toLowerCase().trim();
+  const hour = new Date().getHours();
+  const sorted = getSortedCommands();
+
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const cmd of sorted) {
+    if (!Array.isArray(cmd.triggers)) continue;
+
+    for (const trigger of cmd.triggers) {
+      const isExact = cmd.exact === true;
+      const score = calculateScore(p, trigger, isExact);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = cmd;
+      }
+    }
+  }
+
+  // Minimal skor 50 agar tidak terlalu longgar
+  if (!bestMatch || bestScore < 50) return null;
+
+  // Ambil response
+  if (bestMatch.responses && typeof bestMatch.responses === 'object') {
+    if (p.includes('pagi') || (bestMatch.category === 'sapaan' && hour >= 5 && hour < 11)) {
+      return bestMatch.responses.pagi || bestMatch.responses.default;
+    }
+    if (p.includes('siang') || (bestMatch.category === 'sapaan' && hour >= 11 && hour < 15)) {
+      return bestMatch.responses.siang || bestMatch.responses.default;
+    }
+    if (p.includes('sore') || (bestMatch.category === 'sapaan' && hour >= 15 && hour < 18)) {
+      return bestMatch.responses.sore || bestMatch.responses.default;
+    }
+    if (p.includes('malam') || (bestMatch.category === 'sapaan' && (hour >= 18 || hour < 5))) {
+      return bestMatch.responses.malam || bestMatch.responses.default;
+    }
+    return bestMatch.responses.default || Object.values(bestMatch.responses)[0];
+  }
+
+  return bestMatch.response || null;
+}
+
+// =====================================================
+// CHOOSE ANSWER
+// =====================================================
+async function chooseAnswer(pesan) {
+  chatHistory.push({ role: 'user', text: pesan, time: Date.now() });
+  if (chatHistory.length > 12) chatHistory.shift();
+
+  // 1. Command
+  const fromCmd = runCommand(pesan);
+  if (fromCmd) {
+    chatHistory.push({ role: 'bot', text: fromCmd, type: 'command' });
+    return { text: fromCmd, type: 'command' };
+  }
+
+  // 2. Special (dengan weight jika ada)
+  const chance = COMMANDS.special_chance ?? 0.03;
+  if (Math.random() < chance && Array.isArray(COMMANDS.special_responses) && COMMANDS.special_responses.length) {
+    const text = pickSpecialResponse();
+    chatHistory.push({ role: 'bot', text, type: 'special' });
     return { text, type: 'special' };
   }
 
-  // 3. Pengetahuan dari server
+  // 3. Knowledge
   try {
     const res = await fetch(API + '/knowledge/random');
-    const data = await res.json();
-    if (data.content) return { text: data.content, type: 'learned' };
-  } catch {}
+    if (res.ok) {
+      const data = await res.json();
+      if (data.content) {
+        chatHistory.push({ role: 'bot', text: data.content, type: 'learned' });
+        return { text: data.content, type: 'learned' };
+      }
+    }
+  } catch (err) {
+    console.warn('[FishGPT] Gagal fetch knowledge:', err.message);
+  }
 
   // 4. Fallback
-  return { text: COMMANDS.fallback || 'me fishgpt', type: 'normal' };
+  const fallback = COMMANDS.fallback || 'me fishgpt';
+  chatHistory.push({ role: 'bot', text: fallback, type: 'normal' });
+  return { text: fallback, type: 'normal' };
 }
 
-// ===== STACK JSON =====
+function pickSpecialResponse() {
+  const list = COMMANDS.special_responses;
+
+  // Jika item berupa object {text, weight}
+  if (typeof list[0] === 'object' && list[0].text) {
+    const total = list.reduce((sum, item) => sum + (item.weight || 1), 0);
+    let rand = Math.random() * total;
+    for (const item of list) {
+      rand -= (item.weight || 1);
+      if (rand <= 0) return item.text;
+    }
+  }
+
+  // Biasa (array of string)
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+// =====================================================
+// STACK JSON
+// =====================================================
 function stackCommands(json) {
-  if (!json.commands || !Array.isArray(json.commands)) {
-    throw new Error('JSON harus punya array "commands"');
+  if (!json || !Array.isArray(json.commands)) {
+    throw new Error('JSON harus memiliki array "commands"');
+  }
+
+  const validCommands = json.commands.filter(cmd => {
+    return cmd &&
+           Array.isArray(cmd.triggers) &&
+           cmd.triggers.length > 0 &&
+           (cmd.response || cmd.responses);
+  });
+
+  if (validCommands.length === 0) {
+    throw new Error('Tidak ada perintah valid di JSON');
   }
 
   const before = COMMANDS.commands.length;
-  json.commands.forEach(c => COMMANDS.commands.push(c));
+  validCommands.forEach(cmd => COMMANDS.commands.push(cmd));
 
   if (Array.isArray(json.special_responses)) {
     COMMANDS.special_responses = COMMANDS.special_responses || [];
@@ -133,8 +288,60 @@ function stackCommands(json) {
   }
 
   if (json.fallback) COMMANDS.fallback = json.fallback;
-  if (json.special_chance) COMMANDS.special_chance = json.special_chance;
+  if (typeof json.special_chance === 'number') {
+    COMMANDS.special_chance = json.special_chance;
+  }
 
   saveCommands();
   return COMMANDS.commands.length - before;
 }
+
+// =====================================================
+// HAPUS PERINTAH BERDASARKAN KATEGORI
+// =====================================================
+function removeCommandsByCategory(category) {
+  if (!category) return 0;
+  const before = COMMANDS.commands.length;
+  COMMANDS.commands = COMMANDS.commands.filter(cmd => cmd.category !== category);
+  saveCommands();
+  return before - COMMANDS.commands.length;
+}
+
+// =====================================================
+// HELPERS
+// =====================================================
+function getCommandCount() {
+  return COMMANDS?.commands?.length || 0;
+}
+
+function getHistory() {
+  return [...chatHistory];
+}
+
+function clearHistory() {
+  chatHistory = [];
+}
+
+function getCommands() {
+  return COMMANDS;
+}
+
+// =====================================================
+// EXPORT
+// =====================================================
+window.FishGPT = {
+  loadCommands,
+  saveCommands,
+  resetCommandsToDefault,
+  initAudio,
+  playTypeSound,
+  playKeySound,
+  runCommand,
+  chooseAnswer,
+  stackCommands,
+  removeCommandsByCategory,
+  getCommandCount,
+  getHistory,
+  clearHistory,
+  getCommands
+};
