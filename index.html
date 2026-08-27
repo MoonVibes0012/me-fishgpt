@@ -65,9 +65,9 @@
     .msg { margin-bottom: 9px; line-height: 1.45; max-width: 88%; font-size: 0.95rem; }
     .user { color: #90caf9; margin-left: auto; text-align: right; }
     .bot { color: #80deea; }
-    .bot.special { color: #f0abfc; }
+    .bot.special { color: #80cbc4; }
     .bot.learned { color: #a5f3fc; }
-    .bot.command { color: #80cbc4; }
+    .bot.command { color: #4dd0e1; }
 
     .input-area { display: flex; gap: 8px; margin-bottom: 6px; align-items: flex-end; }
     .input-area textarea {
@@ -111,7 +111,6 @@
     #btnResetCommands { background: rgba(255,180,0,0.12); color: #ffd54f; border-color: rgba(255,180,0,0.3); }
     #btnResetKnowledge { background: rgba(255,60,60,0.15); color: #ff8a80; border-color: rgba(255,60,60,0.3); }
 
-    /* Modal Lihat Perintah */
     #modal {
       display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75);
       z-index: 100; align-items: center; justify-content: center; padding: 16px;
@@ -127,7 +126,7 @@
       background: rgba(128,222,234,0.06); border-radius: 8px;
       padding: 8px 10px; margin-bottom: 8px; font-size: 0.82rem;
     }
-    .cmd-item b { color: #80cbc4; }
+    .cmd-item b { color: #4dd0e1; }
     .modal-close {
       margin-top: 12px; width: 100%; padding: 10px;
       background: #006064; color: white; border: none; border-radius: 8px;
@@ -160,7 +159,6 @@
     </div>
   </div>
 
-  <!-- Modal -->
   <div id="modal">
     <div class="modal-content">
       <h3>Daftar Perintah Aktif</h3>
@@ -173,7 +171,7 @@
     const API = 'https://me-fishgpt-production.up.railway.app';
 
     const DEFAULT_COMMANDS = {
-      version: "2.2",
+      version: "2.3",
       name: "Fishgpt Default",
       commands: [
         {
@@ -229,19 +227,17 @@
         }
       ],
       special_responses: [
-        { trigger: "random", response: "i'm gpt by VelvetEcho ON MoonVibes" }
+        { trigger: "random", response: "dari kedalaman yang sama" }
       ],
       fallback: "me fishgpt"
     };
 
-    // Load
     let COMMANDS = JSON.parse(localStorage.getItem('fishgpt_commands')) || JSON.parse(JSON.stringify(DEFAULT_COMMANDS));
 
     function simpanPerintah() {
       localStorage.setItem('fishgpt_commands', JSON.stringify(COMMANDS));
     }
 
-    // DOM
     const chat = document.getElementById('chat');
     const input = document.getElementById('input');
     const btn = document.getElementById('btnKirim');
@@ -307,14 +303,12 @@
       setTimeout(() => s.remove(), 550);
     });
 
-    // Auto resize
     function autoResize() {
       input.style.height = 'auto';
       input.style.height = Math.min(input.scrollHeight, 100) + 'px';
     }
     input.addEventListener('input', autoResize);
 
-    // Status
     async function updateStatus() {
       try {
         const res = await fetch(API + '/knowledge/count');
@@ -328,39 +322,26 @@
     }
     updateStatus();
 
-    // ===== STACK JSON (benar-benar menumpuk) =====
+    // Stack JSON
     jsonInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-
       try {
         const text = await file.text();
         const json = JSON.parse(text);
-
         if (!json.commands || !Array.isArray(json.commands)) {
           alert('JSON tidak valid. Harus ada array "commands".');
           return;
         }
-
         const sebelum = COMMANDS.commands.length;
-
-        // BENAR-BENAR DITAMBAHKAN (stack)
-        json.commands.forEach(cmd => {
-          COMMANDS.commands.push(cmd);
-        });
-
-        // Special responses juga ditumpuk
+        json.commands.forEach(cmd => COMMANDS.commands.push(cmd));
         if (Array.isArray(json.special_responses)) {
           COMMANDS.special_responses = COMMANDS.special_responses || [];
           COMMANDS.special_responses.push(...json.special_responses);
         }
-
         if (json.fallback) COMMANDS.fallback = json.fallback;
-
         simpanPerintah();
-
-        const sesudah = COMMANDS.commands.length;
-        status.textContent = `Berhasil ditumpuk! +${sesudah - sebelum} perintah. Total: ${sesudah}`;
+        status.textContent = `Ditumpuk +${COMMANDS.commands.length - sebelum}. Total: ${COMMANDS.commands.length}`;
         status.className = 'online';
       } catch (err) {
         alert('Gagal membaca JSON: ' + err.message);
@@ -368,7 +349,6 @@
       jsonInput.value = '';
     });
 
-    // Upload pengetahuan
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files[0];
       if (!file) return;
@@ -387,7 +367,6 @@
       fileInput.value = '';
     });
 
-    // Reset Knowledge
     btnResetKnowledge.addEventListener('click', async () => {
       if (!confirm('Hapus semua pengetahuan di server?')) return;
       try {
@@ -400,16 +379,14 @@
       }
     });
 
-    // Reset Commands
     btnResetCommands.addEventListener('click', () => {
-      if (!confirm('Kembalikan perintah ke default? Semua tumpukan JSON akan hilang.')) return;
+      if (!confirm('Kembalikan perintah ke default?')) return;
       COMMANDS = JSON.parse(JSON.stringify(DEFAULT_COMMANDS));
       simpanPerintah();
-      status.textContent = `Perintah direset ke default (${COMMANDS.commands.length})`;
+      status.textContent = `Perintah direset (${COMMANDS.commands.length})`;
       status.className = 'online';
     });
 
-    // ===== LIHAT PERINTAH =====
     btnLihat.addEventListener('click', () => {
       modalList.innerHTML = '';
       if (COMMANDS.commands.length === 0) {
@@ -418,18 +395,15 @@
         COMMANDS.commands.forEach((cmd, i) => {
           const div = document.createElement('div');
           div.className = 'cmd-item';
-          div.innerHTML = `<b>${i + 1}. ${cmd.category}</b><br>Trigger: ${cmd.triggers.join(', ')}`;
+          div.innerHTML = `<b>${i+1}. ${cmd.category}</b><br>Trigger: ${cmd.triggers.join(', ')}`;
           modalList.appendChild(div);
         });
       }
       modal.classList.add('active');
     });
     btnCloseModal.addEventListener('click', () => modal.classList.remove('active'));
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.remove('active');
-    });
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('active'); });
 
-    // Ketik efek
     function ketik(teks, el) {
       let i = 0;
       el.textContent = '';
@@ -445,14 +419,11 @@
       step();
     }
 
-    // Engine perintah
     function jalankanPerintah(pesan) {
       const p = pesan.toLowerCase().trim();
       const jam = new Date().getHours();
-
       for (const cmd of COMMANDS.commands) {
         if (!cmd.triggers.some(t => p.includes(t.toLowerCase()))) continue;
-
         if (cmd.responses) {
           if (p.includes('pagi') || (cmd.category === 'sapaan' && jam >= 5 && jam < 11))
             return cmd.responses.pagi || cmd.responses.default;
@@ -474,7 +445,7 @@
       if (cmd) return { text: cmd, type: 'command' };
 
       if (Math.random() < 0.03) {
-        return { text: "i'm gpt by VelvetEcho ON MoonVibes", type: 'special' };
+        return { text: "dari kedalaman yang sama", type: 'special' };
       }
 
       try {
