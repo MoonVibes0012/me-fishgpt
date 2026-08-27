@@ -1,0 +1,69 @@
+{
+  "version": "2.4",
+  "name": "Fishgpt Default Commands",
+  "fallback": "me fishgpt",
+  "special_chance": 0.03,
+  "special_responses": [
+    "dari kedalaman yang sama",
+    "arus membawa pesanmu",
+    "aku mendengarkan dari bawah"
+  ],
+  "commands": [
+    {
+      "category": "sapaan",
+      "triggers": ["halo", "hai", "hi", "hey", "hello", "pagi", "siang", "sore", "malam"],
+      "responses": {
+        "pagi": "pagi... saya fishgpt",
+        "siang": "siang. saya fishgpt",
+        "sore": "sore. kedalaman mulai gelap",
+        "malam": "malam. saya fishgpt dari bawah laut",
+        "default": "saya fishgpt"
+      }
+    },
+    {
+      "category": "identitas",
+      "triggers": ["siapa kamu", "kamu siapa", "nama kamu"],
+      "response": "saya fishgpt. makhluk dari kedalaman"
+    },
+    {
+      "category": "kabar",
+      "triggers": ["apa kabar", "gimana kabar", "kabarmu"],
+      "response": "tenang. arus sedang pelan hari ini"
+    },
+    {
+      "category": "terima kasih",
+      "triggers": ["terima kasih", "makasih", "thanks"],
+      "response": "sama-sama..."
+    },
+    {
+      "category": "sedih",
+      "triggers": ["sedih", "capek", "lelah", "galau"],
+      "response": "tenggelam sejenak boleh. laut menerimamu"
+    },
+    {
+      "category": "senang",
+      "triggers": ["senang", "bahagia", "happy"],
+      "response": "bagus. biarkan itu mengapung"
+    },
+    {
+      "category": "belajar",
+      "triggers": ["belajar", "ajari", "pengetahuan"],
+      "response": "kirimkan file. aku akan mengingatnya"
+    },
+    {
+      "category": "afirmasi",
+      "triggers": ["ok", "oke", "baik", "sip", "ya"],
+      "response": "baik"
+    },
+    {
+      "category": "perpisahan",
+      "triggers": ["bye", "dadah", "selamat tinggal", "sampai jumpa"],
+      "response": "sampai bertemu di arus berikutnya"
+    },
+    {
+      "category": "bantuan",
+      "triggers": ["bantuan", "help", "tolong", "cara pakai"],
+      "response": "kamu bisa bicara denganku, kirim file .txt untuk pengetahuan, atau .json untuk menambah perintah"
+    }
+  ]
+}
