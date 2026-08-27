@@ -167,6 +167,9 @@
     </div>
   </div>
 
+  <!-- ========== INTEGRASI FISHGPT.JS ========== -->
+  <script src="fishgpt.js"></script>
+
   <script>
     const API = 'https://me-fishgpt-production.up.railway.app';
 
@@ -251,6 +254,31 @@
     const modalList = document.getElementById('modalList');
     const btnCloseModal = document.getElementById('btnCloseModal');
 
+    // ========== FISHGPT INTEGRATION FLAG ==========
+    let fishGPTReady = false;
+    let fishGPTCommandsLoaded = false;
+
+    // Coba load commands dari FishGPT
+    async function initFishGPT() {
+      try {
+        if (typeof FishGPT !== 'undefined' && FishGPT.loadCommands) {
+          await FishGPT.loadCommands();
+          fishGPTReady = true;
+          fishGPTCommandsLoaded = true;
+          status.textContent = 'FishGPT aktif | ' + status.textContent;
+          console.log('[FishGPT] Loaded successfully');
+        } else {
+          console.warn('[FishGPT] Tidak ditemukan, pakai lokal');
+        }
+      } catch (e) {
+        console.warn('[FishGPT] Gagal load:', e.message);
+        fishGPTReady = false;
+      }
+    }
+
+    // Panggil init
+    initFishGPT();
+
     // Particles
     (function() {
       const c = document.getElementById('particles');
@@ -313,7 +341,8 @@
       try {
         const res = await fetch(API + '/knowledge/count');
         const data = await res.json();
-        status.textContent = `Pengetahuan: ${data.count} | Perintah: ${COMMANDS.commands.length}`;
+        const fishStatus = fishGPTReady ? '🐟 ' : '';
+        status.textContent = `${fishStatus}Pengetahuan: ${data.count} | Perintah: ${COMMANDS.commands.length}`;
         status.className = 'online';
       } catch {
         status.textContent = 'Backend offline';
@@ -419,41 +448,54 @@
       step();
     }
 
-    function jalankanPerintah(pesan) {
+    // ========== LOGIKA UTAMA DENGAN FISHGPT PRIORITAS ==========
+    async function pilihJawaban(pesan) {
+      // PRIORITAS 1: FishGPT (jika ready)
+      if (fishGPTReady && typeof FishGPT !== 'undefined' && FishGPT.chooseAnswer) {
+        try {
+          const jawaban = await FishGPT.chooseAnswer(pesan);
+          if (jawaban && jawaban.text) {
+            const type = jawaban.type || 'command';
+            return { text: jawaban.text, type: type };
+          }
+        } catch (e) {
+          console.warn('[FishGPT] chooseAnswer error:', e);
+        }
+      }
+
+      // PRIORITAS 2: Perintah lokal (COMMANDS)
       const p = pesan.toLowerCase().trim();
       const jam = new Date().getHours();
+
       for (const cmd of COMMANDS.commands) {
         if (!cmd.triggers.some(t => p.includes(t.toLowerCase()))) continue;
         if (cmd.responses) {
           if (p.includes('pagi') || (cmd.category === 'sapaan' && jam >= 5 && jam < 11))
-            return cmd.responses.pagi || cmd.responses.default;
+            return { text: cmd.responses.pagi || cmd.responses.default, type: 'command' };
           if (p.includes('siang') || (cmd.category === 'sapaan' && jam >= 11 && jam < 15))
-            return cmd.responses.siang || cmd.responses.default;
+            return { text: cmd.responses.siang || cmd.responses.default, type: 'command' };
           if (p.includes('sore') || (cmd.category === 'sapaan' && jam >= 15 && jam < 18))
-            return cmd.responses.sore || cmd.responses.default;
+            return { text: cmd.responses.sore || cmd.responses.default, type: 'command' };
           if (p.includes('malam') || (cmd.category === 'sapaan' && (jam >= 18 || jam < 5)))
-            return cmd.responses.malam || cmd.responses.default;
-          return cmd.responses.default || Object.values(cmd.responses)[0];
+            return { text: cmd.responses.malam || cmd.responses.default, type: 'command' };
+          return { text: cmd.responses.default || Object.values(cmd.responses)[0], type: 'command' };
         }
-        if (cmd.response) return cmd.response;
+        if (cmd.response) return { text: cmd.response, type: 'command' };
       }
-      return null;
-    }
 
-    async function pilihJawaban(pesan) {
-      const cmd = jalankanPerintah(pesan);
-      if (cmd) return { text: cmd, type: 'command' };
-
+      // PRIORITAS 3: Special random (3%)
       if (Math.random() < 0.03) {
         return { text: "dari kedalaman yang sama", type: 'special' };
       }
 
+      // PRIORITAS 4: Pengetahuan dari server
       try {
         const res = await fetch(API + '/knowledge/random');
         const data = await res.json();
         if (data.content) return { text: data.content, type: 'learned' };
       } catch {}
 
+      // PRIORITAS 5: Fallback
       return { text: COMMANDS.fallback || 'me fishgpt', type: 'normal' };
     }
 
