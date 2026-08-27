@@ -105,7 +105,7 @@
     #btnKirim {
       padding: 13px 18px; background: linear-gradient(135deg, #006064, #00acc1);
       color: white; border: none; border-radius: 12px; font-size: 0.95rem;
-      font-weight: 600; cursor: pointer; height: 48px; position: relative; overflow: hidden;
+      font-weight: 600; cursor: pointer; height: 48px;
     }
 
     .upload-area { width: 100%; margin-top: 6px; display: flex; gap: 8px; }
@@ -163,10 +163,10 @@
   <script>
     const API = 'https://me-fishgpt-production.up.railway.app';
 
-    // ===== DEFAULT COMMANDS (dari file JSON kamu) =====
-    let COMMANDS = {
-      "version": "1.0",
-      "name": "Fishgpt Commands",
+    // ===== DEFAULT COMMANDS =====
+    const DEFAULT_COMMANDS = {
+      "version": "2.0",
+      "name": "Fishgpt Deep Commands",
       "commands": [
         {
           "category": "sapaan",
@@ -210,16 +210,6 @@
           "response": "bagus. biarkan itu mengapung"
         },
         {
-          "category": "nama diri",
-          "triggers": ["nama saya", "namaku"],
-          "response": "aku dengarkan"
-        },
-        {
-          "category": "pengetahuan",
-          "triggers": ["apa yang kamu tahu", "pengetahuan"],
-          "response": "aku menyimpan apa yang diberikan padaku"
-        },
-        {
           "category": "belajar",
           "triggers": ["belajar", "ajari"],
           "response": "kirimkan file. aku akan mengingatnya"
@@ -236,10 +226,18 @@
         }
       ],
       "special_responses": [
-        { "trigger": "random_8_percent", "response": "i'm gpt by VelvetEcho ON MoonVibes" }
+        { "trigger": "random", "response": "i'm gpt by VelvetEcho ON MoonVibes" }
       ],
       "fallback": "me fishgpt"
     };
+
+    // Ambil dari localStorage, kalau tidak ada pakai default
+    let COMMANDS = JSON.parse(localStorage.getItem('fishgpt_commands')) || DEFAULT_COMMANDS;
+
+    // Fungsi simpan ke localStorage
+    function simpanPerintah() {
+      localStorage.setItem('fishgpt_commands', JSON.stringify(COMMANDS));
+    }
 
     // ===== DOM =====
     const chat = document.getElementById('chat');
@@ -304,7 +302,7 @@
     }
     updateStatus();
 
-    // ===== LOAD JSON COMMANDS =====
+    // ===== LOAD JSON COMMANDS + SIMPAN =====
     jsonInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -314,12 +312,13 @@
         const json = JSON.parse(text);
 
         if (!json.commands || !Array.isArray(json.commands)) {
-          alert('Format JSON tidak valid. Harus ada properti "commands".');
+          alert('Format JSON tidak valid. Harus ada properti "commands" (array).');
           return;
         }
 
         COMMANDS = json;
-        status.textContent = `Perintah berhasil dimuat: ${COMMANDS.commands.length} kategori`;
+        simpanPerintah(); // simpan ke localStorage
+        status.textContent = `Perintah dimuat & disimpan: ${COMMANDS.commands.length} kategori`;
         status.className = 'online';
       } catch (err) {
         alert('Gagal membaca file JSON: ' + err.message);
@@ -346,9 +345,9 @@
       fileInput.value = '';
     });
 
-    // ===== RESET =====
+    // ===== RESET PENGETAHUAN =====
     btnReset.addEventListener('click', async () => {
-      if (!confirm('Yakin hapus semua pengetahuan?')) return;
+      if (!confirm('Yakin hapus semua pengetahuan dari server?')) return;
       try {
         const res = await fetch(API + '/knowledge/reset', { method: 'DELETE' });
         const data = await res.json();
@@ -375,7 +374,7 @@
       step();
     }
 
-    // ===== ENGINE PERINTAH (mengerti JSON) =====
+    // ===== ENGINE PERINTAH =====
     function jalankanPerintah(pesan) {
       const p = pesan.toLowerCase().trim();
       const jam = new Date().getHours();
@@ -384,7 +383,6 @@
         const ketemu = cmd.triggers.some(trigger => p.includes(trigger.toLowerCase()));
         if (!ketemu) continue;
 
-        // Khusus sapaan yang punya responses berdasarkan waktu
         if (cmd.responses) {
           if (p.includes('pagi') || (jam >= 5 && jam < 11 && cmd.category === 'sapaan')) {
             return cmd.responses.pagi || cmd.responses.default;
@@ -395,13 +393,12 @@
           if (p.includes('sore') || (jam >= 15 && jam < 19 && cmd.category === 'sapaan')) {
             return cmd.responses.sore || cmd.responses.default;
           }
-          if (p.includes('malam') || (jam >= 19 || jam < 5) && cmd.category === 'sapaan') {
+          if (p.includes('malam') || ((jam >= 19 || jam < 5) && cmd.category === 'sapaan')) {
             return cmd.responses.malam || cmd.responses.default;
           }
           return cmd.responses.default || Object.values(cmd.responses)[0];
         }
 
-        // Response biasa
         if (cmd.response) return cmd.response;
       }
       return null;
@@ -409,18 +406,18 @@
 
     // ===== PILIH JAWABAN =====
     async function pilihJawaban(pesanUser) {
-      // 1. Coba dari JSON commands
+      // 1. Dari JSON commands
       const dariPerintah = jalankanPerintah(pesanUser);
       if (dariPerintah) {
         return { text: dariPerintah, type: 'command' };
       }
 
-      // 2. Special response (sangat jarang)
+      // 2. Special (jarang)
       if (Math.random() < 0.04) {
         return { text: "i'm gpt by VelvetEcho ON MoonVibes", type: 'special' };
       }
 
-      // 3. Pengetahuan dari database (prioritas tinggi)
+      // 3. Pengetahuan dari database
       try {
         const res = await fetch(API + '/knowledge/random');
         const data = await res.json();
@@ -472,4 +469,4 @@
     setTimeout(autoResize, 80);
   </script>
 </body>
-</html>
+  </html>
