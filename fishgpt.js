@@ -1,42 +1,99 @@
 /**
  * fishgpt.js
- * Core Engine - Version 3.2
+ * Core Engine - Version 3.4 (Load Speed Focused)
  */
 
 const API = 'https://me-fishgpt-production.up.railway.app';
 
 let COMMANDS = null;
 let chatHistory = [];
-let sortedCache = null; // cache perintah yang sudah diurutkan
+let sortedCache = null;
+
+// Statistik detail
+let loadStats = {
+  lastCommandsLoad: 0,
+  localStorageTime: 0,
+  fetchTime: 0,
+  parseTime: 0,
+  stackTime: 0,
+  knowledgeTime: 0,
+  source: null
+};
 
 // =====================================================
-// LOAD & SAVE
+// LOAD COMMANDS (OPTIMIZED)
 // =====================================================
 async function loadCommands() {
+  const totalStart = performance.now();
+
+  // --- 1. localStorage (paling cepat) ---
+  const lsStart = performance.now();
   const saved = localStorage.getItem('fishgpt_commands');
+  loadStats.localStorageTime = Math.round(performance.now() - lsStart);
+
   if (saved) {
+    const parseStart = performance.now();
     try {
-      COMMANDS = JSON.parse(saved);
-      if (COMMANDS && Array.isArray(COMMANDS.commands)) {
+      const parsed = JSON.parse(saved);
+      loadStats.parseTime = Math.round(performance.now() - parseStart);
+
+      if (parsed?.commands && Array.isArray(parsed.commands)) {
+        COMMANDS = parsed;
         sortedCache = null;
-        console.log(`[FishGPT] ${COMMANDS.commands.length} perintah dimuat dari localStorage`);
-        return;
+        loadStats.lastCommandsLoad = Math.round(performance.now() - totalStart);
+        loadStats.source = 'localStorage';
+        loadStats.fetchTime = 0;
+        console.log(`[FishGPT] localStorage load: ${loadStats.lastCommandsLoad}ms`);
+        return {
+          success: true,
+          duration: loadStats.lastCommandsLoad,
+          source: 'localStorage',
+          breakdown: { ...loadStats }
+        };
       }
     } catch (e) {
-      console.warn('[FishGPT] localStorage rusak');
+      console.warn('[FishGPT] localStorage parse failed');
     }
   }
 
+  // --- 2. Fetch commands.json ---
+  const fetchStart = performance.now();
   try {
-    const res = await fetch('commands.json?t=' + Date.now());
+    const res = await fetch('commands.json', { cache: 'force-cache' }); // manfaatkan cache browser
+    loadStats.fetchTime = Math.round(performance.now() - fetchStart);
+
     if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const parseStart = performance.now();
     COMMANDS = await res.json();
-    saveCommands();
+    loadStats.parseTime = Math.round(performance.now() - parseStart);
+
+    // Simpan ke localStorage secara async (tidak memblokir)
+    setTimeout(() => saveCommands(), 0);
+
     sortedCache = null;
-    console.log('[FishGPT] Perintah dimuat dari commands.json');
+    loadStats.lastCommandsLoad = Math.round(performance.now() - totalStart);
+    loadStats.source = 'file';
+
+    console.log(`[FishGPT] File load: ${loadStats.lastCommandsLoad}ms (fetch ${loadStats.fetchTime}ms + parse ${loadStats.parseTime}ms)`);
+
+    return {
+      success: true,
+      duration: loadStats.lastCommandsLoad,
+      source: 'file',
+      breakdown: { ...loadStats }
+    };
   } catch (err) {
-    console.error('[FishGPT] Gagal memuat commands.json:', err.message);
+    console.error('[FishGPT] Load failed:', err.message);
     COMMANDS = getFallbackCommands();
+    loadStats.lastCommandsLoad = Math.round(performance.now() - totalStart);
+    loadStats.source = 'fallback';
+    return {
+      success: false,
+      duration: loadStats.lastCommandsLoad,
+      source: 'fallback',
+      breakdown: { ...loadStats }
+    };
   }
 }
 
@@ -52,23 +109,29 @@ function getFallbackCommands() {
 
 function saveCommands() {
   try {
-    localStorage.setItem('fishgpt_commands', JSON.stringify(COMMANDS));
-    sortedCache = null; // invalidate cache
+    // Stringify bisa berat jika commands sangat banyak, jadi kita biarkan di background
+    const str = JSON.stringify(COMMANDS);
+    localStorage.setItem('fishgpt_commands', str);
+    sortedCache = null;
   } catch (e) {
-    console.warn('[FishGPT] Gagal menyimpan ke localStorage');
+    console.warn('[FishGPT] saveCommands failed');
   }
 }
 
 async function resetCommandsToDefault() {
+  const start = performance.now();
   try {
-    const res = await fetch('commands.json?t=' + Date.now());
-    if (!res.ok) throw new Error('Gagal memuat file');
+    const res = await fetch('commands.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error('Fetch failed');
     COMMANDS = await res.json();
     saveCommands();
-    return true;
+    sortedCache = null;
+    const duration = Math.round(performance.now() - start);
+    loadStats.lastCommandsLoad = duration;
+    loadStats.source = 'file';
+    return { success: true, duration };
   } catch (err) {
-    console.error(err);
-    return false;
+    return { success: false, duration: 0 };
   }
 }
 
@@ -119,39 +182,30 @@ function playKeySound() {
 }
 
 // =====================================================
-// MATCHING ENGINE (dengan skor)
+// MATCHING ENGINE
 // =====================================================
 function getSortedCommands() {
   if (sortedCache) return sortedCache;
-  sortedCache = [...(COMMANDS?.commands || [])].sort((a, b) => {
-    return (b.priority || 0) - (a.priority || 0);
-  });
+  sortedCache = [...(COMMANDS?.commands || [])].sort((a, b) => (b.priority || 0) - (a.priority || 0));
   return sortedCache;
-}
-
-function calculateScore(pesan, trigger, exact = false) {
-  const p = pesan.toLowerCase().trim();
-  const t = trigger.toLowerCase().trim();
-
-  if (!t) return 0;
-
-  // Exact match
-  if (p === t) return 100;
-
-  if (exact) return 0; // jika wajib exact dan tidak sama, skor 0
-
-  // Kata penuh
-  const regex = new RegExp(`\\b${escapeRegex(t)}\\b`, 'i');
-  if (regex.test(p)) return 80;
-
-  // Partial
-  if (p.includes(t)) return 50;
-
-  return 0;
 }
 
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function calculateScore(pesan, trigger, exact = false) {
+  const p = pesan.toLowerCase().trim();
+  const t = String(trigger).toLowerCase().trim();
+  if (!t) return 0;
+  if (p === t) return 100;
+  if (exact) return 0;
+  if (p.includes(t)) {
+    // Bonus jika kata penuh
+    const regex = new RegExp(`\\b${escapeRegex(t)}\\b`, 'i');
+    return regex.test(p) ? 80 : 50;
+  }
+  return 0;
 }
 
 function runCommand(pesan) {
@@ -166,11 +220,8 @@ function runCommand(pesan) {
 
   for (const cmd of sorted) {
     if (!Array.isArray(cmd.triggers)) continue;
-
     for (const trigger of cmd.triggers) {
-      const isExact = cmd.exact === true;
-      const score = calculateScore(p, trigger, isExact);
-
+      const score = calculateScore(p, trigger, cmd.exact === true);
       if (score > bestScore) {
         bestScore = score;
         bestMatch = cmd;
@@ -178,10 +229,8 @@ function runCommand(pesan) {
     }
   }
 
-  // Minimal skor 50 agar tidak terlalu longgar
   if (!bestMatch || bestScore < 50) return null;
 
-  // Ambil response
   if (bestMatch.responses && typeof bestMatch.responses === 'object') {
     if (p.includes('pagi') || (bestMatch.category === 'sapaan' && hour >= 5 && hour < 11)) {
       return bestMatch.responses.pagi || bestMatch.responses.default;
@@ -208,14 +257,12 @@ async function chooseAnswer(pesan) {
   chatHistory.push({ role: 'user', text: pesan, time: Date.now() });
   if (chatHistory.length > 12) chatHistory.shift();
 
-  // 1. Command
   const fromCmd = runCommand(pesan);
   if (fromCmd) {
     chatHistory.push({ role: 'bot', text: fromCmd, type: 'command' });
     return { text: fromCmd, type: 'command' };
   }
 
-  // 2. Special (dengan weight jika ada)
   const chance = COMMANDS.special_chance ?? 0.03;
   if (Math.random() < chance && Array.isArray(COMMANDS.special_responses) && COMMANDS.special_responses.length) {
     const text = pickSpecialResponse();
@@ -223,7 +270,6 @@ async function chooseAnswer(pesan) {
     return { text, type: 'special' };
   }
 
-  // 3. Knowledge
   try {
     const res = await fetch(API + '/knowledge/random');
     if (res.ok) {
@@ -233,11 +279,8 @@ async function chooseAnswer(pesan) {
         return { text: data.content, type: 'learned' };
       }
     }
-  } catch (err) {
-    console.warn('[FishGPT] Gagal fetch knowledge:', err.message);
-  }
+  } catch (err) {}
 
-  // 4. Fallback
   const fallback = COMMANDS.fallback || 'me fishgpt';
   chatHistory.push({ role: 'bot', text: fallback, type: 'normal' });
   return { text: fallback, type: 'normal' };
@@ -245,9 +288,7 @@ async function chooseAnswer(pesan) {
 
 function pickSpecialResponse() {
   const list = COMMANDS.special_responses;
-
-  // Jika item berupa object {text, weight}
-  if (typeof list[0] === 'object' && list[0].text) {
+  if (typeof list[0] === 'object' && list[0]?.text) {
     const total = list.reduce((sum, item) => sum + (item.weight || 1), 0);
     let rand = Math.random() * total;
     for (const item of list) {
@@ -255,32 +296,32 @@ function pickSpecialResponse() {
       if (rand <= 0) return item.text;
     }
   }
-
-  // Biasa (array of string)
   return list[Math.floor(Math.random() * list.length)];
 }
 
 // =====================================================
-// STACK JSON
+// STACK + SPEED
 // =====================================================
 function stackCommands(json) {
-  if (!json || !Array.isArray(json.commands)) {
+  const start = performance.now();
+
+  if (!json?.commands || !Array.isArray(json.commands)) {
     throw new Error('JSON harus memiliki array "commands"');
   }
 
-  const validCommands = json.commands.filter(cmd => {
-    return cmd &&
-           Array.isArray(cmd.triggers) &&
-           cmd.triggers.length > 0 &&
-           (cmd.response || cmd.responses);
-  });
+  const validCommands = json.commands.filter(cmd =>
+    cmd && Array.isArray(cmd.triggers) && cmd.triggers.length > 0 && (cmd.response || cmd.responses)
+  );
 
   if (validCommands.length === 0) {
-    throw new Error('Tidak ada perintah valid di JSON');
+    throw new Error('Tidak ada perintah valid');
   }
 
   const before = COMMANDS.commands.length;
-  validCommands.forEach(cmd => COMMANDS.commands.push(cmd));
+  // Push lebih cepat daripada concat untuk array besar
+  for (let i = 0; i < validCommands.length; i++) {
+    COMMANDS.commands.push(validCommands[i]);
+  }
 
   if (Array.isArray(json.special_responses)) {
     COMMANDS.special_responses = COMMANDS.special_responses || [];
@@ -288,28 +329,60 @@ function stackCommands(json) {
   }
 
   if (json.fallback) COMMANDS.fallback = json.fallback;
-  if (typeof json.special_chance === 'number') {
-    COMMANDS.special_chance = json.special_chance;
-  }
+  if (typeof json.special_chance === 'number') COMMANDS.special_chance = json.special_chance;
 
-  saveCommands();
-  return COMMANDS.commands.length - before;
+  // Save di background
+  setTimeout(() => saveCommands(), 0);
+
+  const duration = Math.round(performance.now() - start);
+  loadStats.stackTime = duration;
+
+  return {
+    added: COMMANDS.commands.length - before,
+    total: COMMANDS.commands.length,
+    duration
+  };
 }
 
 // =====================================================
-// HAPUS PERINTAH BERDASARKAN KATEGORI
+// KNOWLEDGE UPLOAD + SPEED
 // =====================================================
-function removeCommandsByCategory(category) {
-  if (!category) return 0;
-  const before = COMMANDS.commands.length;
-  COMMANDS.commands = COMMANDS.commands.filter(cmd => cmd.category !== category);
-  saveCommands();
-  return before - COMMANDS.commands.length;
+async function uploadKnowledge(file) {
+  const start = performance.now();
+  if (!file) throw new Error('Tidak ada file');
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(API + '/upload', {
+    method: 'POST',
+    body: formData
+  });
+
+  const data = await res.json();
+  const duration = Math.round(performance.now() - start);
+  loadStats.knowledgeTime = duration;
+
+  if (!res.ok) throw new Error(data.error || 'Gagal upload');
+
+  return {
+    message: data.message,
+    chunks: data.chunks || 0,
+    duration
+  };
 }
 
 // =====================================================
 // HELPERS
 // =====================================================
+function removeCommandsByCategory(category) {
+  if (!category) return 0;
+  const before = COMMANDS.commands.length;
+  COMMANDS.commands = COMMANDS.commands.filter(cmd => cmd.category !== category);
+  setTimeout(() => saveCommands(), 0);
+  return before - COMMANDS.commands.length;
+}
+
 function getCommandCount() {
   return COMMANDS?.commands?.length || 0;
 }
@@ -326,6 +399,10 @@ function getCommands() {
   return COMMANDS;
 }
 
+function getLoadStats() {
+  return { ...loadStats };
+}
+
 // =====================================================
 // EXPORT
 // =====================================================
@@ -339,9 +416,11 @@ window.FishGPT = {
   runCommand,
   chooseAnswer,
   stackCommands,
+  uploadKnowledge,
   removeCommandsByCategory,
   getCommandCount,
   getHistory,
   clearHistory,
-  getCommands
+  getCommands,
+  getLoadStats
 };
