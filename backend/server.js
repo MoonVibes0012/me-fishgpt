@@ -7,46 +7,43 @@ const { Pool } = require('pg');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ===== DATABASE =====
+// ===== DATABASE POOL =====
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 10, // batasi koneksi
-  idleTimeoutMillis: 30000
+  max: 8,
+  idleTimeoutMillis: 20000,
+  connectionTimeoutMillis: 8000
 });
 
-// Test koneksi saat start
-pool.query('SELECT NOW()')
-  .then(() => console.log('✅ Database terhubung'))
-  .catch(err => console.error('❌ Database error:', err.message));
+// Warm-up
+pool.query('SELECT 1').catch(() => {});
 
 // ===== MIDDLEWARE =====
-app.use(cors({
-  origin: '*', // bisa dikunci ke domain GitHub Pages kamu nanti
-  methods: ['GET', 'POST', 'DELETE']
-}));
-app.use(express.json({ limit: '1mb' }));
+app.use(cors({ origin: '*', methods: ['GET', 'POST', 'DELETE'] }));
+app.use(express.json({ limit: '512kb' }));
 
-// ===== MULTER (Upload) =====
+// Simple response time log
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    if (ms > 300) console.log(`⚠️  ${req.method} ${req.url} - ${ms}ms`);
+  });
+  next();
+});
+
+// ===== MULTER =====
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 1 * 1024 * 1024, // 1MB
-    files: 1
-  },
+  limits: { fileSize: 1 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
-    const isTxt = file.mimetype === 'text/plain' || 
-                  file.originalname.toLowerCase().endsWith('.txt');
-    
-    if (isTxt) {
-      cb(null, true);
-    } else {
-      cb(new Error('Hanya file .txt yang diperbolehkan'), false);
-    }
+    const ok = file.mimetype === 'text/plain' || file.originalname.toLowerCase().endsWith('.txt');
+    cb(ok ? null : new Error('Hanya file .txt yang diperbolehkan'), ok);
   }
 });
 
-// ===== INIT TABLE =====
+// ===== INIT DB =====
 async function initDB() {
   try {
     await pool.query(`
@@ -57,159 +54,148 @@ async function initDB() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
-    // Index untuk mempercepat ORDER BY RANDOM() pada data kecil-menengah
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_knowledge_id ON knowledge(id)
-    `);
-    
-    console.log('✅ Tabel knowledge siap');
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_knowledge_id ON knowledge(id)`);
+    console.log('✅ Database ready');
   } catch (err) {
-    console.error('❌ Gagal init database:', err.message);
+    console.error('❌ DB init failed:', err.message);
   }
 }
 
 // ===== ROUTES =====
 
-// Health check
-app.get('/', (req, res) => {
-  res.json({
-    status: 'me fishgpt backend online',
-    time: new Date().toISOString()
-  });
+// Health check + DB ping
+app.get('/', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ status: 'online', db: true, t: Date.now() });
+  } catch {
+    res.status(500).json({ status: 'online', db: false, t: Date.now() });
+  }
 });
 
-// Upload pengetahuan (.txt)
+// Upload (batch)
 app.post('/upload', (req, res) => {
   upload.single('file')(req, res, async (err) => {
-    if (err) {
-      return res.status(400).json({ error: err.message || 'Gagal upload file' });
-    }
+    if (err) return res.status(400).json({ error: err.message });
 
     try {
-      if (!req.file) {
-        return res.status(400).json({ error: 'Tidak ada file yang dikirim' });
-      }
+      if (!req.file) return res.status(400).json({ error: 'Tidak ada file' });
 
       const text = req.file.buffer.toString('utf-8').trim();
-      
-      if (!text) {
-        return res.status(400).json({ error: 'File kosong' });
-      }
+      if (!text) return res.status(400).json({ error: 'File kosong' });
 
-      // Pecah berdasarkan baris, buang yang terlalu pendek
       const chunks = text
         .split(/\r?\n/)
-        .map(line => line.trim())
-        .filter(line => line.length > 8); // minimal 8 karakter
+        .map(l => l.trim())
+        .filter(l => l.length > 8);
 
       if (chunks.length === 0) {
-        return res.status(400).json({ error: 'Tidak ada konten yang valid (terlalu pendek)' });
+        return res.status(400).json({ error: 'Tidak ada konten valid' });
       }
 
-      // Insert batch
-      let inserted = 0;
-      for (const chunk of chunks) {
-        await pool.query(
-          'INSERT INTO knowledge (content, source) VALUES ($1, $2)',
-          [chunk, req.file.originalname || 'unknown']
-        );
-        inserted++;
-      }
+      const source = req.file.originalname || 'unknown';
+      const sources = chunks.map(() => source);
 
-      console.log(`📥 Berhasil insert ${inserted} potongan dari ${req.file.originalname}`);
+      await pool.query(
+        `INSERT INTO knowledge (content, source)
+         SELECT * FROM UNNEST($1::text[], $2::text[])`,
+        [chunks, sources]
+      );
 
       res.json({
-        message: `Berhasil menyimpan ${inserted} potongan pengetahuan`,
-        chunks: inserted
+        message: `Berhasil menyimpan ${chunks.length} potongan`,
+        chunks: chunks.length
       });
-
     } catch (error) {
       console.error('Upload error:', error.message);
-      res.status(500).json({ error: 'Gagal menyimpan ke database' });
+      res.status(500).json({ error: 'Gagal menyimpan' });
     }
   });
 });
 
-// Ambil 1 pengetahuan acak
+// Random knowledge (cepat)
 app.get('/knowledge/random', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT content 
-      FROM knowledge 
-      ORDER BY RANDOM() 
+    // Coba teknik cepat dulu
+    let result = await pool.query(`
+      SELECT content FROM knowledge
+      TABLESAMPLE SYSTEM (15)
       LIMIT 1
     `);
 
+    // Fallback jika TABLESAMPLE tidak mengembalikan baris
     if (result.rows.length === 0) {
-      return res.json({ content: null });
+      const countRes = await pool.query('SELECT COUNT(*)::int AS total FROM knowledge');
+      const total = countRes.rows[0].total;
+
+      if (total === 0) return res.json({ content: null });
+
+      const offset = Math.floor(Math.random() * total);
+      result = await pool.query(
+        'SELECT content FROM knowledge OFFSET $1 LIMIT 1',
+        [offset]
+      );
     }
 
-    res.json({ content: result.rows[0].content });
+    res.json({ content: result.rows[0]?.content || null });
   } catch (err) {
     console.error('Random error:', err.message);
-    res.status(500).json({ error: 'Gagal mengambil pengetahuan' });
-  }
-});
-
-// Jumlah pengetahuan
-app.get('/knowledge/count', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT COUNT(*)::int AS total FROM knowledge');
-    res.json({ count: result.rows[0].total });
-  } catch (err) {
-    console.error('Count error:', err.message);
-    res.status(500).json({ error: 'Gagal menghitung pengetahuan' });
-  }
-});
-
-// Reset semua pengetahuan
-app.delete('/knowledge/reset', async (req, res) => {
-  try {
-    const result = await pool.query('DELETE FROM knowledge RETURNING id');
-    const deleted = result.rowCount || 0;
-
-    console.log(`🗑️  Berhasil hapus ${deleted} potongan pengetahuan`);
-
-    res.json({
-      message: `Berhasil menghapus ${deleted} potongan pengetahuan`,
-      deleted
-    });
-  } catch (err) {
-    console.error('Reset error:', err.message);
-    res.status(500).json({ error: 'Gagal mereset pengetahuan' });
-  }
-});
-
-// (Opsional) Lihat beberapa pengetahuan terakhir - untuk debug
-app.get('/knowledge/recent', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT id, content, source, created_at 
-      FROM knowledge 
-      ORDER BY id DESC 
-      LIMIT 10
-    `);
-    res.json(result.rows);
-  } catch (err) {
     res.status(500).json({ error: 'Gagal mengambil data' });
   }
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint tidak ditemukan' });
+// Count
+app.get('/knowledge/count', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT COUNT(*)::int AS total FROM knowledge');
+    res.json({ count: result.rows[0].total });
+  } catch {
+    res.status(500).json({ error: 'Gagal menghitung' });
+  }
 });
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error('Server error:', err.message);
-  res.status(500).json({ error: 'Terjadi kesalahan internal' });
+// Reset
+app.delete('/knowledge/reset', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM knowledge');
+    res.json({
+      message: `Berhasil menghapus ${result.rowCount || 0} potongan`,
+      deleted: result.rowCount || 0
+    });
+  } catch {
+    res.status(500).json({ error: 'Gagal reset' });
+  }
 });
 
-// ===== START =====
+// Recent (debug)
+app.get('/knowledge/recent', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, left(content, 80) AS content, source, created_at
+      FROM knowledge
+      ORDER BY id DESC
+      LIMIT 8
+    `);
+    res.json(result.rows);
+  } catch {
+    res.status(500).json({ error: 'Gagal' });
+  }
+});
+
+// 404
+app.use((req, res) => res.status(404).json({ error: 'Not found' }));
+
+// ===== START + GRACEFUL SHUTDOWN =====
 initDB().then(() => {
-  app.listen(port, () => {
-    console.log(`🚀 Server berjalan di port ${port}`);
+  const server = app.listen(port, () => {
+    console.log(`🚀 Server ready on port ${port}`);
+  });
+
+  process.on('SIGTERM', () => {
+    console.log('Shutting down...');
+    server.close(() => {
+      pool.end();
+      process.exit(0);
+    });
   });
 });
