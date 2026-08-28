@@ -41,11 +41,7 @@
       font-size: 1.5rem; font-weight: 600; letter-spacing: 5px;
       text-align: center; color: #80deea;
       text-shadow: 0 0 10px #80deea, 0 0 30px #00acc1;
-      animation: neonPulse 3s ease-in-out infinite; margin-bottom: 2px;
-    }
-    @keyframes neonPulse {
-      0%, 100% { text-shadow: 0 0 10px #80deea, 0 0 30px #00acc1; }
-      50% { text-shadow: 0 0 20px #80deea, 0 0 50px #00acc1; }
+      margin-bottom: 2px;
     }
     #chat {
       width: 100%; flex: 1; min-height: 160px; max-height: 420px;
@@ -55,7 +51,6 @@
                         url('Screenshot_20260821-130756_Brave.png');
       background-size: cover; background-position: center;
       border: 1.5px solid rgba(128,222,234,0.25);
-      box-shadow: 0 8px 30px rgba(0,0,0,0.5);
     }
     #chat:empty::before {
       content: 'Kedalaman menunggu bisikanmu...';
@@ -79,13 +74,8 @@
     #btnKirim {
       padding: 11px 15px; background: linear-gradient(135deg, #006064, #00acc1);
       color: white; border: none; border-radius: 11px; font-weight: 600;
-      height: 44px; cursor: pointer; position: relative; overflow: hidden;
+      height: 44px; cursor: pointer;
     }
-    .ripple {
-      position: absolute; border-radius: 50%; background: rgba(255,255,255,0.35);
-      transform: scale(0); animation: rippleAnim 0.55s linear; pointer-events: none;
-    }
-    @keyframes rippleAnim { to { transform: scale(4); opacity: 0; } }
 
     .upload-area { display: flex; gap: 7px; margin-top: 2px; }
     .upload-area label {
@@ -121,7 +111,7 @@
       border-radius: 14px; width: 100%; max-width: 420px; max-height: 80vh;
       overflow-y: auto; padding: 16px;
     }
-    .modal-content h3 { color: #80deea; margin-bottom: 12px; font-size: 1.1rem; }
+    .modal-content h3 { color: #80deea; margin-bottom: 12px; }
     .cmd-item {
       background: rgba(128,222,234,0.06); border-radius: 8px;
       padding: 8px 10px; margin-bottom: 8px; font-size: 0.82rem;
@@ -167,80 +157,10 @@
     </div>
   </div>
 
-  <!-- ========== INTEGRASI FISHGPT.JS ========== -->
+  <!-- Engine -->
   <script src="fishgpt.js"></script>
 
   <script>
-    const API = 'https://me-fishgpt-production.up.railway.app';
-
-    const DEFAULT_COMMANDS = {
-      version: "2.3",
-      name: "Fishgpt Default",
-      commands: [
-        {
-          category: "sapaan",
-          triggers: ["halo","hai","hi","hey","hello","pagi","siang","sore","malam"],
-          responses: {
-            pagi: "pagi... saya fishgpt",
-            siang: "siang. saya fishgpt",
-            sore: "sore. kedalaman mulai gelap",
-            malam: "malam. saya fishgpt dari bawah laut",
-            default: "saya fishgpt"
-          }
-        },
-        {
-          category: "identitas",
-          triggers: ["siapa kamu","kamu siapa","nama kamu"],
-          response: "saya fishgpt. makhluk dari kedalaman"
-        },
-        {
-          category: "kabar",
-          triggers: ["apa kabar","gimana kabar","kabarmu"],
-          response: "tenang. arus sedang pelan hari ini"
-        },
-        {
-          category: "terima kasih",
-          triggers: ["terima kasih","makasih","thanks"],
-          response: "sama-sama..."
-        },
-        {
-          category: "sedih",
-          triggers: ["sedih","capek","lelah"],
-          response: "tenggelam sejenak boleh. laut menerimamu"
-        },
-        {
-          category: "senang",
-          triggers: ["senang","bahagia","happy"],
-          response: "bagus. biarkan itu mengapung"
-        },
-        {
-          category: "belajar",
-          triggers: ["belajar","ajari"],
-          response: "kirimkan file. aku akan mengingatnya"
-        },
-        {
-          category: "afirmasi",
-          triggers: ["ok","oke","baik","sip"],
-          response: "baik"
-        },
-        {
-          category: "perpisahan",
-          triggers: ["bye","dadah","selamat tinggal"],
-          response: "sampai bertemu di arus berikutnya"
-        }
-      ],
-      special_responses: [
-        { trigger: "random", response: "dari kedalaman yang sama" }
-      ],
-      fallback: "me fishgpt"
-    };
-
-    let COMMANDS = JSON.parse(localStorage.getItem('fishgpt_commands')) || JSON.parse(JSON.stringify(DEFAULT_COMMANDS));
-
-    function simpanPerintah() {
-      localStorage.setItem('fishgpt_commands', JSON.stringify(COMMANDS));
-    }
-
     const chat = document.getElementById('chat');
     const input = document.getElementById('input');
     const btn = document.getElementById('btnKirim');
@@ -254,36 +174,10 @@
     const modalList = document.getElementById('modalList');
     const btnCloseModal = document.getElementById('btnCloseModal');
 
-    // ========== FISHGPT INTEGRATION FLAG ==========
-    let fishGPTReady = false;
-    let fishGPTCommandsLoaded = false;
-
-    // Coba load commands dari FishGPT
-    async function initFishGPT() {
-      try {
-        if (typeof FishGPT !== 'undefined' && FishGPT.loadCommands) {
-          const result = await FishGPT.loadCommands();
-          fishGPTReady = true;
-          fishGPTCommandsLoaded = true;
-          console.log(`[FishGPT] Loaded in ${result.duration}ms from ${result.source}`);
-          console.log('[FishGPT] Stats:', FishGPT.getLoadStats ? FishGPT.getLoadStats() : 'N/A');
-          status.textContent = `🐟 FishGPT aktif (${result.duration}ms) | ` + status.textContent;
-        } else {
-          console.warn('[FishGPT] Tidak ditemukan, pakai lokal');
-        }
-      } catch (e) {
-        console.warn('[FishGPT] Gagal load:', e.message);
-        fishGPTReady = false;
-      }
-    }
-
-    // Panggil init
-    initFishGPT();
-
     // Particles
     (function() {
       const c = document.getElementById('particles');
-      for (let i = 0; i < 24; i++) {
+      for (let i = 0; i < 22; i++) {
         const p = document.createElement('div');
         p.className = 'particle';
         p.style.left = Math.random() * 100 + '%';
@@ -294,181 +188,60 @@
       }
     })();
 
-    // Audio
-    let audioCtx;
-    function initAudio() {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    function playTypeSound() {
-      if (!audioCtx) return;
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.connect(g); g.connect(audioCtx.destination);
-      o.frequency.value = 600 + Math.random() * 140;
-      o.type = 'triangle'; g.gain.value = 0.025;
-      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-      o.start(); o.stop(audioCtx.currentTime + 0.05);
-    }
-    function playKeySound() {
-      if (!audioCtx) return;
-      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-      o.connect(g); g.connect(audioCtx.destination);
-      o.frequency.value = 750 + Math.random() * 300;
-      o.type = 'square'; g.gain.value = 0.012;
-      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
-      o.start(); o.stop(audioCtx.currentTime + 0.03);
-    }
-    input.addEventListener('keydown', () => { initAudio(); playKeySound(); });
-
-    // Ripple
-    btn.addEventListener('click', function(e) {
-      const r = this.getBoundingClientRect();
-      const s = document.createElement('span');
-      s.className = 'ripple';
-      const size = Math.max(r.width, r.height);
-      s.style.width = s.style.height = size + 'px';
-      s.style.left = (e.clientX - r.left - size/2) + 'px';
-      s.style.top = (e.clientY - r.top - size/2) + 'px';
-      this.appendChild(s);
-      setTimeout(() => s.remove(), 550);
-    });
-
+    // Auto resize
     function autoResize() {
       input.style.height = 'auto';
       input.style.height = Math.min(input.scrollHeight, 100) + 'px';
     }
     input.addEventListener('input', autoResize);
 
+    // Status
     async function updateStatus() {
       try {
-        const res = await fetch(API + '/knowledge/count');
+        const res = await fetch('https://me-fishgpt-production.up.railway.app/knowledge/count');
         const data = await res.json();
-        const fishStatus = fishGPTReady ? '🐟 ' : '';
-        status.textContent = `${fishStatus}Pengetahuan: ${data.count} | Perintah: ${COMMANDS.commands.length}`;
+        const cmdCount = FishGPT.getCommandCount();
+        status.textContent = `Pengetahuan: ${data.count} | Perintah: ${cmdCount}`;
         status.className = 'online';
       } catch {
         status.textContent = 'Backend offline';
         status.className = 'offline';
       }
     }
-    updateStatus();
 
-    // ========== UPLOAD PENGETAHUAN DENGAN LOGGING ==========
-    fileInput.addEventListener('change', async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-      status.textContent = 'Mengunggah...';
-      const fd = new FormData();
-      fd.append('file', file);
-
-      const startTime = performance.now();
-
-      try {
-        // Coba pakai FishGPT.uploadKnowledge kalau ada
-        let result = null;
-        if (fishGPTReady && typeof FishGPT !== 'undefined' && FishGPT.uploadKnowledge) {
-          result = await FishGPT.uploadKnowledge(file);
-          console.log(`[FishGPT] Upload selesai dalam ${result.duration}ms`);
-        }
-
-        // Tetap kirim ke server lokal sebagai backup
-        const res = await fetch(API + '/upload', { method: 'POST', body: fd });
-        const data = await res.json();
-
-        const elapsed = Math.round(performance.now() - startTime);
-        status.textContent = res.ok ? `${data.message} (${elapsed}ms)` : (data.error || 'Gagal');
-        if (res.ok) updateStatus();
-      } catch (err) {
-        status.textContent = 'Gagal terhubung';
-        status.className = 'offline';
-        console.error('[Upload] Error:', err);
-      }
-      fileInput.value = '';
-    });
-
-    // ========== STACK JSON DENGAN LOGGING ==========
-    jsonInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      try {
-        const text = await file.text();
-        const json = JSON.parse(text);
-
-        if (!json.commands || !Array.isArray(json.commands)) {
-          alert('JSON tidak valid. Harus ada array "commands".');
-          return;
-        }
-
-        const startTime = performance.now();
-
-        // Coba pakai FishGPT.stackCommands kalau ada
-        if (fishGPTReady && typeof FishGPT !== 'undefined' && FishGPT.stackCommands) {
-          const stackResult = FishGPT.stackCommands(json);
-          console.log(`[FishGPT] Ditambahkan ${stackResult.added} perintah dalam ${stackResult.duration}ms`);
-        }
-
-        // Juga tumpuk ke COMMANDS lokal
-        const sebelum = COMMANDS.commands.length;
-        json.commands.forEach(cmd => COMMANDS.commands.push(cmd));
-        if (Array.isArray(json.special_responses)) {
-          COMMANDS.special_responses = COMMANDS.special_responses || [];
-          COMMANDS.special_responses.push(...json.special_responses);
-        }
-        if (json.fallback) COMMANDS.fallback = json.fallback;
-        simpanPerintah();
-
-        const elapsed = Math.round(performance.now() - startTime);
-        status.textContent = `Ditumpuk +${COMMANDS.commands.length - sebelum} (${elapsed}ms). Total: ${COMMANDS.commands.length}`;
+    // Init
+    async function init() {
+      status.textContent = 'Memuat perintah...';
+      const result = await FishGPT.loadCommands();
+      
+      if (result.success) {
+        status.textContent = `Perintah siap (${FishGPT.getCommandCount()}) • ${result.duration}ms`;
         status.className = 'online';
-      } catch (err) {
-        alert('Gagal membaca JSON: ' + err.message);
-      }
-      jsonInput.value = '';
-    });
-
-    btnResetKnowledge.addEventListener('click', async () => {
-      if (!confirm('Hapus semua pengetahuan di server?')) return;
-      try {
-        const res = await fetch(API + '/knowledge/reset', { method: 'DELETE' });
-        const data = await res.json();
-        status.textContent = res.ok ? 'Pengetahuan direset' : (data.error || 'Gagal');
-        if (res.ok) updateStatus();
-      } catch {
-        status.textContent = 'Gagal terhubung';
-      }
-    });
-
-    btnResetCommands.addEventListener('click', () => {
-      if (!confirm('Kembalikan perintah ke default?')) return;
-      COMMANDS = JSON.parse(JSON.stringify(DEFAULT_COMMANDS));
-      simpanPerintah();
-      status.textContent = `Perintah direset (${COMMANDS.commands.length})`;
-      status.className = 'online';
-    });
-
-    btnLihat.addEventListener('click', () => {
-      modalList.innerHTML = '';
-      if (COMMANDS.commands.length === 0) {
-        modalList.innerHTML = '<div class="cmd-item">Belum ada perintah</div>';
       } else {
-        COMMANDS.commands.forEach((cmd, i) => {
-          const div = document.createElement('div');
-          div.className = 'cmd-item';
-          div.innerHTML = `<b>${i+1}. ${cmd.category}</b><br>Trigger: ${cmd.triggers.join(', ')}`;
-          modalList.appendChild(div);
-        });
+        status.textContent = 'Perintah fallback dipakai';
+        status.className = 'offline';
       }
-      modal.classList.add('active');
-    });
-    btnCloseModal.addEventListener('click', () => modal.classList.remove('active'));
-    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('active'); });
 
+      // Update status lengkap setelah sedikit delay
+      setTimeout(updateStatus, 800);
+    }
+
+    init();
+
+    // Keyboard sound
+    input.addEventListener('keydown', () => {
+      FishGPT.initAudio();
+      FishGPT.playKeySound();
+    });
+
+    // Ketik efek
     function ketik(teks, el) {
       let i = 0;
       el.textContent = '';
       function step() {
         if (i < teks.length) {
           el.textContent += teks[i];
-          playTypeSound();
+          FishGPT.playTypeSound();
           i++;
           chat.scrollTop = chat.scrollHeight;
           setTimeout(step, 38);
@@ -477,61 +250,12 @@
       step();
     }
 
-    // ========== LOGIKA UTAMA DENGAN FISHGPT PRIORITAS ==========
-    async function pilihJawaban(pesan) {
-      // PRIORITAS 1: FishGPT (jika ready)
-      if (fishGPTReady && typeof FishGPT !== 'undefined' && FishGPT.chooseAnswer) {
-        try {
-          const jawaban = await FishGPT.chooseAnswer(pesan);
-          if (jawaban && jawaban.text) {
-            const type = jawaban.type || 'command';
-            return { text: jawaban.text, type: type };
-          }
-        } catch (e) {
-          console.warn('[FishGPT] chooseAnswer error:', e);
-        }
-      }
-
-      // PRIORITAS 2: Perintah lokal (COMMANDS)
-      const p = pesan.toLowerCase().trim();
-      const jam = new Date().getHours();
-
-      for (const cmd of COMMANDS.commands) {
-        if (!cmd.triggers.some(t => p.includes(t.toLowerCase()))) continue;
-        if (cmd.responses) {
-          if (p.includes('pagi') || (cmd.category === 'sapaan' && jam >= 5 && jam < 11))
-            return { text: cmd.responses.pagi || cmd.responses.default, type: 'command' };
-          if (p.includes('siang') || (cmd.category === 'sapaan' && jam >= 11 && jam < 15))
-            return { text: cmd.responses.siang || cmd.responses.default, type: 'command' };
-          if (p.includes('sore') || (cmd.category === 'sapaan' && jam >= 15 && jam < 18))
-            return { text: cmd.responses.sore || cmd.responses.default, type: 'command' };
-          if (p.includes('malam') || (cmd.category === 'sapaan' && (jam >= 18 || jam < 5)))
-            return { text: cmd.responses.malam || cmd.responses.default, type: 'command' };
-          return { text: cmd.responses.default || Object.values(cmd.responses)[0], type: 'command' };
-        }
-        if (cmd.response) return { text: cmd.response, type: 'command' };
-      }
-
-      // PRIORITAS 3: Special random (3%)
-      if (Math.random() < 0.03) {
-        return { text: "dari kedalaman yang sama", type: 'special' };
-      }
-
-      // PRIORITAS 4: Pengetahuan dari server
-      try {
-        const res = await fetch(API + '/knowledge/random');
-        const data = await res.json();
-        if (data.content) return { text: data.content, type: 'learned' };
-      } catch {}
-
-      // PRIORITAS 5: Fallback
-      return { text: COMMANDS.fallback || 'me fishgpt', type: 'normal' };
-    }
-
+    // Kirim pesan
     async function kirim() {
       const pesan = input.value.trim();
       if (!pesan) return;
-      initAudio();
+
+      FishGPT.initAudio();
 
       const userDiv = document.createElement('div');
       userDiv.className = 'msg user';
@@ -546,12 +270,16 @@
       botDiv.className = 'msg bot';
       chat.appendChild(botDiv);
 
-      const j = await pilihJawaban(pesan);
-      if (j.type === 'special') botDiv.classList.add('special');
-      if (j.type === 'learned') botDiv.classList.add('learned');
-      if (j.type === 'command') botDiv.classList.add('command');
-
-      ketik(j.text, botDiv);
+      try {
+        const jawaban = await FishGPT.chooseAnswer(pesan);
+        if (jawaban.type === 'special') botDiv.classList.add('special');
+        if (jawaban.type === 'learned') botDiv.classList.add('learned');
+        if (jawaban.type === 'command') botDiv.classList.add('command');
+        ketik(jawaban.text, botDiv);
+      } catch (err) {
+        botDiv.textContent = 'me fishgpt';
+        console.error(err);
+      }
     }
 
     btn.addEventListener('click', kirim);
@@ -560,6 +288,90 @@
         e.preventDefault();
         kirim();
       }
+    });
+
+    // Upload Pengetahuan
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      status.textContent = 'Mengunggah pengetahuan...';
+      try {
+        const result = await FishGPT.uploadKnowledge(file);
+        status.textContent = `\( {result.message} ( \){result.duration}ms)`;
+        status.className = 'online';
+        setTimeout(updateStatus, 600);
+      } catch (err) {
+        status.textContent = err.message || 'Gagal upload';
+        status.className = 'offline';
+      }
+      fileInput.value = '';
+    });
+
+    // Upload / Stack JSON
+    jsonInput.addEventListener('change', async () => {
+      const file = jsonInput.files[0];
+      if (!file) return;
+      status.textContent = 'Memuat perintah JSON...';
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        const result = FishGPT.stackCommands(json);
+        status.textContent = `+\( {result.added} perintah ditumpuk ( \){result.duration}ms). Total: ${result.total}`;
+        status.className = 'online';
+      } catch (err) {
+        status.textContent = err.message || 'Gagal memuat JSON';
+        status.className = 'offline';
+      }
+      jsonInput.value = '';
+    });
+
+    // Reset Knowledge
+    btnResetKnowledge.addEventListener('click', async () => {
+      if (!confirm('Hapus semua pengetahuan di server?')) return;
+      try {
+        const res = await fetch('https://me-fishgpt-production.up.railway.app/knowledge/reset', { method: 'DELETE' });
+        const data = await res.json();
+        status.textContent = res.ok ? 'Pengetahuan direset' : (data.error || 'Gagal');
+        if (res.ok) setTimeout(updateStatus, 500);
+      } catch {
+        status.textContent = 'Gagal terhubung';
+        status.className = 'offline';
+      }
+    });
+
+    // Reset Commands
+    btnResetCommands.addEventListener('click', async () => {
+      if (!confirm('Kembalikan perintah ke default?')) return;
+      const result = await FishGPT.resetCommandsToDefault();
+      if (result.success) {
+        status.textContent = `Perintah direset (${FishGPT.getCommandCount()})`;
+        status.className = 'online';
+      } else {
+        status.textContent = 'Gagal reset perintah';
+        status.className = 'offline';
+      }
+    });
+
+    // Lihat Perintah
+    btnLihat.addEventListener('click', () => {
+      const cmds = FishGPT.getCommands()?.commands || [];
+      modalList.innerHTML = '';
+      if (cmds.length === 0) {
+        modalList.innerHTML = '<div class="cmd-item">Belum ada perintah</div>';
+      } else {
+        cmds.forEach((cmd, i) => {
+          const div = document.createElement('div');
+          div.className = 'cmd-item';
+          div.innerHTML = `<b>${i + 1}. ${cmd.category || 'tanpa kategori'}</b><br>Trigger: ${(cmd.triggers || []).join(', ')}`;
+          modalList.appendChild(div);
+        });
+      }
+      modal.classList.add('active');
+    });
+
+    btnCloseModal.addEventListener('click', () => modal.classList.remove('active'));
+    modal.addEventListener('click', e => {
+      if (e.target === modal) modal.classList.remove('active');
     });
 
     setTimeout(autoResize, 50);
