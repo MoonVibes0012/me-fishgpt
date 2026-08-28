@@ -262,11 +262,12 @@
     async function initFishGPT() {
       try {
         if (typeof FishGPT !== 'undefined' && FishGPT.loadCommands) {
-          await FishGPT.loadCommands();
+          const result = await FishGPT.loadCommands();
           fishGPTReady = true;
           fishGPTCommandsLoaded = true;
-          status.textContent = 'FishGPT aktif | ' + status.textContent;
-          console.log('[FishGPT] Loaded successfully');
+          console.log(`[FishGPT] Loaded in ${result.duration}ms from ${result.source}`);
+          console.log('[FishGPT] Stats:', FishGPT.getLoadStats ? FishGPT.getLoadStats() : 'N/A');
+          status.textContent = `🐟 FishGPT aktif (${result.duration}ms) | ` + status.textContent;
         } else {
           console.warn('[FishGPT] Tidak ditemukan, pakai lokal');
         }
@@ -351,17 +352,61 @@
     }
     updateStatus();
 
-    // Stack JSON
+    // ========== UPLOAD PENGETAHUAN DENGAN LOGGING ==========
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      status.textContent = 'Mengunggah...';
+      const fd = new FormData();
+      fd.append('file', file);
+
+      const startTime = performance.now();
+
+      try {
+        // Coba pakai FishGPT.uploadKnowledge kalau ada
+        let result = null;
+        if (fishGPTReady && typeof FishGPT !== 'undefined' && FishGPT.uploadKnowledge) {
+          result = await FishGPT.uploadKnowledge(file);
+          console.log(`[FishGPT] Upload selesai dalam ${result.duration}ms`);
+        }
+
+        // Tetap kirim ke server lokal sebagai backup
+        const res = await fetch(API + '/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+
+        const elapsed = Math.round(performance.now() - startTime);
+        status.textContent = res.ok ? `${data.message} (${elapsed}ms)` : (data.error || 'Gagal');
+        if (res.ok) updateStatus();
+      } catch (err) {
+        status.textContent = 'Gagal terhubung';
+        status.className = 'offline';
+        console.error('[Upload] Error:', err);
+      }
+      fileInput.value = '';
+    });
+
+    // ========== STACK JSON DENGAN LOGGING ==========
     jsonInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       try {
         const text = await file.text();
         const json = JSON.parse(text);
+
         if (!json.commands || !Array.isArray(json.commands)) {
           alert('JSON tidak valid. Harus ada array "commands".');
           return;
         }
+
+        const startTime = performance.now();
+
+        // Coba pakai FishGPT.stackCommands kalau ada
+        if (fishGPTReady && typeof FishGPT !== 'undefined' && FishGPT.stackCommands) {
+          const stackResult = FishGPT.stackCommands(json);
+          console.log(`[FishGPT] Ditambahkan ${stackResult.added} perintah dalam ${stackResult.duration}ms`);
+        }
+
+        // Juga tumpuk ke COMMANDS lokal
         const sebelum = COMMANDS.commands.length;
         json.commands.forEach(cmd => COMMANDS.commands.push(cmd));
         if (Array.isArray(json.special_responses)) {
@@ -370,30 +415,14 @@
         }
         if (json.fallback) COMMANDS.fallback = json.fallback;
         simpanPerintah();
-        status.textContent = `Ditumpuk +${COMMANDS.commands.length - sebelum}. Total: ${COMMANDS.commands.length}`;
+
+        const elapsed = Math.round(performance.now() - startTime);
+        status.textContent = `Ditumpuk +${COMMANDS.commands.length - sebelum} (${elapsed}ms). Total: ${COMMANDS.commands.length}`;
         status.className = 'online';
       } catch (err) {
         alert('Gagal membaca JSON: ' + err.message);
       }
       jsonInput.value = '';
-    });
-
-    fileInput.addEventListener('change', async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-      status.textContent = 'Mengunggah...';
-      const fd = new FormData();
-      fd.append('file', file);
-      try {
-        const res = await fetch(API + '/upload', { method: 'POST', body: fd });
-        const data = await res.json();
-        status.textContent = res.ok ? data.message : (data.error || 'Gagal');
-        if (res.ok) updateStatus();
-      } catch {
-        status.textContent = 'Gagal terhubung';
-        status.className = 'offline';
-      }
-      fileInput.value = '';
     });
 
     btnResetKnowledge.addEventListener('click', async () => {
